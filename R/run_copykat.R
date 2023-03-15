@@ -2,83 +2,95 @@ library(copykat)
 library(tidyverse)
 
 
-## ---- AIM ---- ##
+#### ---- AIM ---- ####
 # this script runs copykat cnv caller
 # on the combined ref + exp scRNA-seq data
 # combined because we want to use the ref baseline
 # to call out cnvs
-## ---- AIM ---- ##
+#######################
 
 
 
-## ---- sample data ---- ##
-# ck_data <- exp.rawdata 
-# ck_data %>% head()
+
+
+preProcData <- function(cmd_args){
+
+    # reading in the count mat
+    # making a matrix and supplying it as it is good practice
+    count_raw <- read.table(cmd_args[1])
+    count_mat <- as.matrix(count_raw)
+
+
+    # getting the ncores
+    n_cores <- cmd_args[2]
+
+
+    # get the out dir
+    out_dir <- cmd_args[3]
+
+
+    # get the cell ids of the normal cells
+    # 1. select the cols which have pbmc3k || SRR since it is cell prefix
+    # 2. get the colnames of this subsetted df
+    # SRR is for the cells from epithelium dataset
+    count_raw <- as.data.frame(count_raw)
+    ref_cells_names <- count_raw %>% select(contains('pbmc3k') | contains('SRR')) %>% colnames()
+
+
+    return(list(count_mat, n_cores, out_dir, ref_cells_names))
+}
 
 
 
-## ---- own data ---- ##
-
-# ref <- read.table('./proc/counts_atlas_pbmc_kiwi.tsv.gz')
-# ref[1:5,1:5]
 
 
-# ref_cells <- colnames(ref)
-# ref_cells[1:5]
-# length(ref_cells)
 
-# count_mat <- read.table('./proc/infercnv_atc2_ref_merged_counts.tsv')
-# count_matrix <- as.matrix(count_mat)
-# annot_mat <- read.table('./infercnv_test/input_files/hg38_gencode_v27.txt')
-# annot_mat %>% head()
+runCopykat <- function(count_mat, n_cores, out_dir, ref_cells_names){
 
-
-## ---- tnbc1 fresh ---- ##
-
-# reading in the tnbc1 pbmc combined mat
-# making a matrix and supplying it as it is good practice
-count_tnbc1 <- read.table('../proc/pbmc3k_epithelium_tnbc1_ref_merged_counts.tsv.gz')
-count_tnbc1[1:5,1:5]
-# count_tnbc1[1:5,6835:6842]
-# count_tnbc1[1:5, 5740:5746]
-count_mat <- as.matrix(count_tnbc1)
+    # create the out_dir if not present
+    # setting the wd to the output dir
+    # so that the results are saved to the out_dir
+    if(!dir.exists(out_dir)){
+        
+        dir.create(out_dir)
+    }
+    setwd(out_dir)
 
 
-# get the cell ids of the normal cells
-# 1. select the cols which have pbmc3k || SRR since it is cell prefix
-# 2. get the colnames of this subsetted df
-# SRR is for the cells from epithelium dataset
-ref_mat_from_count <- count_tnbc1 %>% select(contains('pbmc3k') | contains('SRR'))
-ref_mat_from_count %>% ncol()
-ref_cells <- ref_mat_from_count %>% colnames()
-ref_cells[1:5]
-ref_cells %>% length()
-# ref_cells[1:2] %in% colnames(count_tnbc1[,1:2])
-# colnames(count_tnbc1[,1:2])
+    # win.size is the window for smoothing the exp
+    # 25 is the recommended value in the vignette
+    # pasing the names of cells from the ref as the norm.cell.names
+    copykat_run <- copykat(rawmat=count_mat,
+                           id.type="S",
+                           ngene.chr=5,
+                           win.size=101,
+                           KS.cut=0.1,
+                           sam.name="tnbc1",
+                           distance="euclidean",
+                           norm.cell.names=ref_cells_names,
+                           output.seg="FLASE",
+                           plot.genes="TRUE",
+                           genome="hg20",
+                           n.cores=n_cores)
+}
 
 
-# dir where results will be saved
-out_dir <- '../outputs/copykat_pbmc3k_epithelium_tnbc1/'
 
 
-# setting the wd to the output dir
-# so that the results are saved to the out_dir
-setwd(out_dir)
+
+#### ---- MAIN SECTION ---- ####
+
+# read cmd line args
+cmd_args <- commandArgs(trailingOnly = T)
 
 
-# win.size is the window for smoothing the exp
-# 25 is the recommended value in the vignette
-# pasing the names of cells from the ref as the norm.cell.names
-copykat_tnbc <- copykat(rawmat=count_mat,
-                        id.type="S",
-                        ngene.chr=5,
-                        win.size=101,
-                        KS.cut=0.1,
-                        sam.name="tnbc1",
-                        distance="euclidean",
-                        norm.cell.names=ref_cells,
-                        output.seg="FLASE",
-                        plot.genes="TRUE",
-                        genome="hg20",
-                        n.cores=32)
+ret_list <- preProcData(cmd_args)
+count_mat <- ret_list[[1]]
+n_cores <- ret_list[[2]]
+out_dir <- ret_list[[3]]
+ref_cells_names <- ret_list[[4]]
 
+
+runCopykat(count_mat, n_cores, out_dir, ref_cells_names)
+
+################################
