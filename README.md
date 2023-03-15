@@ -11,6 +11,6 @@ This repo contains scripts to run popular CNV callers from scRNA-seq data. Steps
 - [x] [Numbat](https://github.com/kharchenkolab/numbat)
 - [x] [Infercnv](https://github.com/broadinstitute/infercnv)
 - [x] [Copykat](https://github.com/navinlabcode/copykat)
+- [x] [ConicSmat](https://github.com/diazlab/CONICS)
 - [ ] [HoneyBADGER](https://github.com/JEFworks-Lab/HoneyBADGER)
-- [ ] [ConicSmat](https://github.com/diazlab/CONICS)
 
