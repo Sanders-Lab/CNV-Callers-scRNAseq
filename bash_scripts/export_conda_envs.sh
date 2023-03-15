@@ -10,6 +10,7 @@ source ~/.bashrc
 DATE=$(date -I)
 
 
+
 conda activate numbat
 printf "\nExporting currently active env: %s" $(echo $CONDA_DEFAULT_ENV)
 conda env export > ../environments/${CONDA_DEFAULT_ENV}_${DATE}_env.yml
@@ -17,6 +18,12 @@ printf "\n%s env exported successfully to the environments folder!" $(echo $COND
 
 
 conda activate infercnv
+printf "\nExporting currently active env: %s" $(echo $CONDA_DEFAULT_ENV)
+conda env export > ../environments/${CONDA_DEFAULT_ENV}_${DATE}_env.yml
+printf "\n%s env exported successfully to the environments folder!" $(echo $CONDA_DEFAULT_ENV)
+
+
+conda activate conicsmat
 printf "\nExporting currently active env: %s" $(echo $CONDA_DEFAULT_ENV)
 conda env export > ../environments/${CONDA_DEFAULT_ENV}_${DATE}_env.yml
 printf "\n%s env exported successfully to the environments folder!" $(echo $CONDA_DEFAULT_ENV)

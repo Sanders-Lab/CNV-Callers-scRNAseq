@@ -34,7 +34,7 @@ epithelium <- Read10X('../data/reference/epithelium')
 epithelium <- read.table('../proc/epithelium_hgnc_counts.tsv.gz',
                          row.names = 1)
 epithelium[1:5,1:5]
-epithelium[,1] <- rownames(epithelium)
+# epithelium[,1] <- rownames(epithelium)
 epithelium %>% rownames() %>% head()
 epithelium %>% rownames() %>% is.na() %>% table()
 epithelium %>% rownames() %>% str_detect('%') %>% table()
@@ -47,12 +47,19 @@ epi_mat %>% nrow()
 any(is.na(row.names(epi_mat)))
 
 
+# One gene had a blank gene name which was 
+# the culprit
+# commands to sort out this shit
+spurious_genes <- which(rownames(epithelium) == '')
+spurious_genes
+epithelium <- epithelium[-spurious_genes,]
+
 
 ## ---- tnbc1 fresh ---- ##
 # SOURCE: dataset from copykat publication
 # read in the saved file
 tnbc1 <- read.table('../proc/tnbc1_gene_mat_raw_cleaned.tsv.gz')
-tnbc1 %>% head()
+tnbc1 %>% head(n = c(5,5))
 
 
 # create seurat object for each of the counts
@@ -67,6 +74,8 @@ tnbc1_so
 epi_so@meta.data %>% rownames() %>% duplicated() %>% table()
 colnames(epi_so)
 
+all(colnames(pbmc3k_so) == colnames(epi_so))
+
 
 # uc_so@assays$RNA@counts[1:5,1:5]
 
@@ -74,10 +83,12 @@ colnames(epi_so)
 # merge the seurat objects
 # cell ids are added as prefix to cell names
 # so that it can be used to mark normal
-# and malignant cells easily when sample_annot is made
+and malignant cells easily when sample_annot is made
+# had to merge in two steps because there was this error
+# `please provide a cell identifier for each object provided to merge`
 merged_so <- merge(pbmc3k_so,
                    tnbc1_so,
-                   add.cell.ids = c('pbmc3k','tnbc1'),
+                   add.cell.ids = c('pbmc3k', 'tnbc1'),
                    project = 'combined')
 merged_so
 merged_so <- merge(epi_so,
@@ -94,7 +105,7 @@ merged_counts[1:5,4420:4428]
 
 # convert to matrix to save to file
 merged_counts_mat <- as.matrix(merged_counts)
-merged_counts_mat %>% head()
+merged_counts_mat %>% head(n = c(5,5))
 write.table(merged_counts_mat,
             gzfile('../proc/pbmc3k_epithelium_tnbc1_ref_merged_counts.tsv.gz'),
             sep = '\t')

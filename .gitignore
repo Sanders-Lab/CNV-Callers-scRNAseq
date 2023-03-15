@@ -1,0 +1,11 @@
+data/
+proc/
+conicsmat_test/
+infercnv_test/
+numbat_test/
+outputs/
+.ipynb_checkpoints/
+code/.Rhistory
+plots/
+.DS_Store
+._.DS_Store
