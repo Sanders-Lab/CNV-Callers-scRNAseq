@@ -1,97 +1,165 @@
 library(tidyverse)
-library(numbat)
-
-counts <- read.table('data//GSM4476492_combined_UMIcount_CellTypes_ATC2.txt.gz')
-counts %>% head()
-counts %>% tail()
-
-# first two rows had preds. Removed them
-raw_counts <- counts[3:nrow(counts),]
-raw_counts %>% head()
-raw_counts <- as.data.frame(raw_counts)
-raw_counts <- apply(raw_counts, 2, as.numeric)
-raw_counts <- as.matrix(raw_counts, sparse = T)
-
-write.table(raw_counts, 'data/atc2_raw_counts_cleaned.tsv', sep = '\t')
-
-raw_counts <- read.table('data/atc2_raw_counts_cleaned.tsv')
-counts_mat <- as.matrix(raw_counts)
-
-count_mat_ATC2 = readRDS(url('http://pklab.med.harvard.edu/teng/data/count_mat_ATC2.rds'))
-allele_df <- readRDS(url('http://pklab.med.harvard.edu/teng/data/df_allele_ATC2.rds'))
-allele_df %>% head()
-
-ref_custom <- read.table('numbat_ref_granje_kiwi_pbmc.tsv')
-ref_custom %>% head()
-ref_custom <- as.matrix(ref)
-
-
-
-
-## ---- tnbc1 ---- ##
-# convert to matrix for each of the matrices
-tnbc1_counts <- read.table('../proc/tnbc1_gene_mat_raw_cleaned.tsv.gz',
-                           sep = '\t')
-tnbc1_counts[1:5,1:5]
-
-tnbc1_count_mat <- as.matrix(tnbc1_counts)
-tnbc1_count_mat %>% dim()
-tnbc1_count_mat %>% head()
-colnames(tnbc1_count_mat) <- paste0(colnames(tnbc1_count_mat), '-1')
-
-
-# as matrix is key here
-ref_custom <- read.table('../proc/numbat_ref_pbmc_epi.tsv.gz')
-ref_custom %>% dim()
-ref_custom %>% head
-ref_custom %>% is.na() %>% table
-ref_custom_mat <- as.matrix(ref_custom)
-
-
-# there were 3 NA in the 5th col. 
-# substituted them for 0.0
-tnbc1_allele_df <- read.table('../data/tnbc1_ck/tnbc_fastq/ART13preTX_0_1_HFYMLDMXX/pileup_phase_output_tnbc1/tnbc1_allele_counts.tsv.gz',
-                        sep = '\t',
-                        header = T)
-tnbc1_allele_df %>% head()
-tnbc1_allele_df %>% is.na() %>% which(arr.ind = T)
-tnbc1_allele_df[828054:828056,5] <- 0.0
-tnbc1_allele_df[828054:828056,5] 
-
-
-out <- run_numbat(tnbc1_count_mat,
-                  ref_custom_mat,
-                  tnbc1_allele_df,
-                  genome = "hg38",
-                  ncores = 16,
-                  plot = TRUE,
-                  out_dir = '../outputs/numbat_tnbc1_pbmcEpiRef/')
-
-
-## ---- p1794 kiwi ---- ##
-
-library(numbat)
 library(Seurat)
-library(stringr)
-
-sample <- 'P1794_GEX_HD1'
-
-feat_mat_dir <- str_glue("/fast/groups/ag_sanders/work/projects/suharto/cnv_callers/numbat_test/p1794_kiwi/count_output/{sample}/outs/filtered_feature_bc_matrix")
-allele_count_dir <- str_glue("/fast/groups/ag_sanders/work/projects/suharto/cnv_callers/numbat_test/p1794_kiwi/pileup_phase/{sample}/{sample}_allele_counts.tsv.gz")
-nout_dir <- str_glue("outputs/numbat_{sample}")
-
-
-feat_mat <- Read10X(feat_mat_dir)
-allele_count <- read.table(allele_count_dir, sep = '\t', header=T)
-feat_mat %>% head()
-allele_count %>% head()
+library(numbat)
 
 
 
-out <- run_numbat(feat_mat,
-                  ref_custom,
-                  allele_count,
-                  genome = "hg38",
-                  ncores = 16,
-                  plot = TRUE,
-                  out_dir = nout_dir)
+
+#### ---- BRIEF ---- ####
+# @param 1. ref_mat_path
+# @param 2. ref_annot_path
+# @param 3. count_mat_path
+# @param 4. allele_count_path
+# @param 5. n_cores
+# @param 6. out_dir
+
+
+
+
+
+#### ---- Read in matrix files and cell annotations ---- ####
+
+ReadData <- function(ref_mat_path = "../data/reference/pbmc_3k/",
+                     ref_annot_path = "../proc/pbmc3k_cell_group_annot.tsv.gz",
+                     count_mat_path,
+                     allele_count_path,
+                     count_mat_type = "t") {
+
+    pbmc3k <- Read10X(ref_mat_path)
+    pbmc_cell_annot <- read.table(ref_annot_path,
+                                  header = T)
+
+    if(count_mat_type == "t") {
+
+        count_mat <- Read10X(count_mat_path)
+    }
+
+    allele_count <- read.table(allele_count_path,
+                               sep = "\t",
+                               header = T)
+
+    writeLines("\nRead in all the files required!\n")
+    return(list(pbmc3k, pbmc_cell_annot, count_mat, allele_count))
+}
+
+
+
+
+#### ---- Make the reference for numbat ---- ####
+
+MakeNumbatRef <- function(ref_mat, ref_mat_annot){
+
+
+    numbat_ref <- aggregate_counts(ref_mat, ref_mat_annot)
+
+    writeLines("\nGenerated reference for numbat!\n")
+    return(numbat_ref)
+
+}
+
+
+SaveNumbatRef <- function(numbat_ref, ref_save_path) {
+
+    writeLines("\nSaving the numbat ref to file")
+    write.table(numbat_ref,
+                gzfile(save_path),
+                sep = "\t")
+
+}
+
+
+
+
+#### ---- run numbat ---- ####
+
+RunNumbat <- function(count_mat,
+                      ref_custom,
+                      allele_count,
+                      n_cores,
+                      out_dir) {
+
+    run_numbat(count_mat,
+               ref_custom,
+               allele_count,
+               genome = "hg38",
+               ncores = n_cores,
+               plot = TRUE,
+               out_dir = out_dir)
+    
+}
+
+
+
+
+#### ---- MAIN SECTION ---- ####
+
+cmd_args <- commandArgs(trailingOnly = T)
+
+writeLines(str_glue("\nThe passed in args are:\n
+                    ref_mat_path: {cmd_args[1]}\n
+                    ref_annot_path: {cmd_args[2]}\n
+                    count_mat_path: {cmd_args[3]}\n
+                    allele_count_path: {cmd_args[4]}\n
+                    n_cores: {cmd_args[5]}\n
+                    out_dir: {cmd_args[6]}\n"))
+
+
+
+# use the default pbmc loc if blank is provided
+if(!cmd_args[1] == "") {
+
+    read_list <- ReadData(ref_mat_path = cmd_args[1],
+                          ref_annot_path = cmd_args[2],
+                          count_mat_path = cmd_args[3],
+                          allele_count_path = cmd_args[4],
+                          count_mat_type = "t")
+
+} else {
+
+    read_list <- ReadData(count_mat_path = cmd_args[3],
+                          allele_count_path = cmd_args[4],
+                          count_mat_type = "t")
+
+}
+
+n_cores <- as.integer(cmd_args[5])
+out_dir <- cmd_args[6]
+
+ref_mat <- read_list[[1]]
+ref_mat_annot <- read_list[[2]]
+count_mat <- read_list[[3]]
+allele_count <- read_list[[4]]
+
+
+numbat_ref <- MakeNumbatRef(ref_mat, ref_mat_annot)
+# SaveNumbatRef(numbat_ref, )
+
+
+RunNumbat(count_mat,
+          numbat_ref,
+          allele_count,
+          n_cores,
+          out_dir)
+
+# QND TESTS
+#   32 outputs/tall_scnova/numbat_pbmc_tall/
+# 
+# read_list <- ReadData(count_mat_path = "../data/ega_data/tall_ega_data/10X_count/bamtofastq/outs/filtered_feature_bc_matrix",
+#                       allele_count_path = "../data/ega_data/tall_ega_data/pileup_phase_tall/tall_allele_counts.tsv.gz",
+#                       count_mat_type = "t")
+# ref_mat <- read_list[[1]]
+# ref_mat_annot <- read_list[[2]]
+# count_mat <- read_list[[3]]
+# allele_count <- read_list[[4]]
+# 
+# ref_mat %>% head(n = c(5,5))
+# ref_mat_annot %>% head()
+# 
+# numbat_ref <- MakeNumbatRef(ref_mat, ref_mat_annot)
+
+
+
+
+
+
+
