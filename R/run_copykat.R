@@ -7,6 +7,10 @@ library(tidyverse)
 # on the combined ref + exp scRNA-seq data
 # combined because we want to use the ref baseline
 # to call out cnvs
+# @param 1. count mat: (mat) merged count mat
+# @param 2. n_cores: (int) the number of cores to use
+# @param 3. out_dir: (str) the output dir 
+# @param 4. ref_cell_prefix: (str) the cell prefix for normal cells
 #######################
 
 
@@ -34,7 +38,7 @@ preProcData <- function(cmd_args){
     # 2. get the colnames of this subsetted df
     # SRR is for the cells from epithelium dataset
     count_raw <- as.data.frame(count_raw)
-    ref_cells_names <- count_raw %>% select(contains('pbmc3k') | contains('SRR')) %>% colnames()
+    ref_cells_names <- count_raw %>% select(contains(cmd_args[4])) %>% colnames()
 
 
     return(list(count_mat, n_cores, out_dir, ref_cells_names))
@@ -86,10 +90,11 @@ cmd_args <- commandArgs(trailingOnly = T)
 
 ret_list <- preProcData(cmd_args)
 count_mat <- ret_list[[1]]
-n_cores <- ret_list[[2]]
+n_cores <- as.integer(ret_list[[2]])
 out_dir <- ret_list[[3]]
 ref_cells_names <- ret_list[[4]]
 
+print(str_glue("\n Running Copykat with {n_cores} and the output_dir is {out_dir}\n"))
 
 runCopykat(count_mat, n_cores, out_dir, ref_cells_names)
 
