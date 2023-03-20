@@ -12,16 +12,19 @@ source ~/.bashrc
 conda activate numbat
 printf "\nME: Conda env activated: %s!\n" $(echo $CONDA_DEFAULT_ENV)
 
+# This script is for 1 sample only.
+# run a for loop in the calling script to work
+# for multi sample
 
-OUT_DIR=pileup_phase_output_tnbc1
+BAM_DIR=$1
+SAMPLE=$2
+OUT_DIR=$3
 mkdir $OUT_DIR
 printf "\nME:Output dir created at ./%s" $(echo $OUT_DIR)
 
 
 printf "\nME: Starting Numbat Pileup and Phasing...\n"
 
-DATA_DIR=./tnbc1/outs
-SAMPLE=tnbc1
 #SAMPLE=$(ls $BAM_dir/*.bam | awk -F/ '{print $2}' | awk -F_ '{print $1}')
 
 printf "\nME: Starting with SAMPLE: %s\n" "$SAMPLE"
@@ -29,8 +32,8 @@ printf "\nME: Starting with SAMPLE: %s\n" "$SAMPLE"
 Rscript /fast/work/users/sbanerj_m/miniconda3/envs/numbat/lib/R/library/numbat/bin/pileup_and_phase.R \
     --label $SAMPLE \
     --samples $SAMPLE \
-    --bams $DATA_DIR/possorted_genome_bam.bam \
-    --barcodes $DATA_DIR/filtered_feature_bc_matrix/barcodes.tsv.gz \
+    --bams $BAM_DIR/possorted_genome_bam.bam \
+    --barcodes $BAM_DIR/filtered_feature_bc_matrix/barcodes.tsv.gz \
     --outdir $OUT_DIR/ \
     --gmap $g_tools/eagle/Eagle_v2.4.1/tables/genetic_map_hg38_withX.txt.gz \
     --snpvcf $g_data/1000g_snp_vcf/genome1K.phase3.SNP_AF5e2.chr1toX.hg38.vcf.gz \
