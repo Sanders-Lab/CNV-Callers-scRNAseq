@@ -1,5 +1,7 @@
 #!/bin/bash
 #
+#SBATCH -o R_%10x_%j.out
+#SBATCH -e R_%10x_%j.out
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=64

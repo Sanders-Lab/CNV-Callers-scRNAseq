@@ -5,7 +5,9 @@ infercnv_test/
 numbat_test/
 outputs/
 .ipynb_checkpoints/
-code/.Rhistory
+R/.Rhistory
 plots/
 .DS_Store
 ._.DS_Store
+dirty_code/
+bash_scripts/*.out
