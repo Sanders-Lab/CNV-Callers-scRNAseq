@@ -1,6 +1,6 @@
 library(tidyverse)
 library(infercnv)
-library(stringr)
+library(Seurat)
 
 
 ## ---- AIM ---- ##
@@ -8,6 +8,12 @@ library(stringr)
 # it also generates sample annot file
 # required for the run here
 # doing it here maintains consistent cell ids
+# 
+# @param 1. count_mat_path: combined count mat
+# @param 2. mat_type: the count mat type. 
+#           for 10x, pass t (Default)
+# @param 3: n_cores
+# @param 4: out_dir
 ## ---- AIM ---- ##
 
 
@@ -16,104 +22,114 @@ library(stringr)
 # gene names need to be row.names for both count mat
 # and the gene loc mat 
 # convert the df to matrix? check if works without
-# gene_mat <- read.table('../proc/pbmc3k_tnbc1_ref_merged_counts.tsv.gz',
+# gene_mat <- read.table("../proc/pbmc3k_tnbc1_ref_merged_counts.tsv.gz",
 #                        row.names = 1)
 
+ReadData <- function(count_mat_path,
+                     gene_order_path = "../data/gene_chr_loc/hg38_gencode_v27.txt",
+                     mat_type = "c") {
 
-## ---- tnbc1 + pbmc3k + epi ---- ##
-gene_mat <- read.table('../proc/pbmc3k_epithelium_tnbc1_ref_merged_counts.tsv.gz')
-gene_order <- read.table('../infercnv_test/input_files/hg38_gencode_v27.txt',
-                         row.names = 1)
-# gene_order <- read.table('./proc/hgnc_infercnv_gene_ranges.tsv.gz',
-#                          row.names = 1)
-gene_order[1:5,1:3]
-gene_mat[1:5,1:5]
-# colnames(gene_mat) <- colnames(gene_mat) %>% str_replace('[.]', '_')
-# colnames(gene_mat) %>% head
-count_mat <- as.matrix(gene_mat)
-count_mat[1:5,1:5]
-count_mat %>% ncol()
-count_mat[1:5,670:675]
+    if(mat_type == "t") {
+    
+        count_mat <- Read10X(count_mat_path)
+    } 
+    if(mat_type == "c") {
 
-
-
-# making the sample annot file
-# check if the cell prefix has pbmc3k
-# mark those rows as normal
-# otherwise malignant_{sample}
-cells <- colnames(gene_mat)
-cells %>% length
-sample_annot <- as.data.frame(cells)
-sample_annot %>% head
-row.names(sample_annot) <- sample_annot$cells
-sample_annot$cells %>% str_detect('SRR') %>% table()
-
-for (i in 1:nrow(sample_annot)){
-    cell <- sample_annot$cell[i]
-
-    if(str_detect(cell,'pbmc3k')){
-        sample_annot$group[i] <- 'pbmc'
+        count_mat <- read.table(count_mat_path)
     }
 
-    if(str_detect(cell, 'SRR')){
-        sample_annot$group[i] <- 'epithelium'
-    }
+    gene_order <- read.table(gene_order_path,
+                             row.names = 1)
 
-    else{
-        sample_annot$group[i] <- 'malignant_tnbc1'
-    }
+    writeLines("Read in the Data!")
+    return(list(count_mat, gene_order))
 }
 
-sample_annot$group <- sample_annot %>% apply(., 
-                                             1,
-                                             function(x) ifelse(str_detect(x, 'pbmc3k'), 'pbmc', 'malignant_tnbc1'))
-sample_annot$group <- sample_annot$cells %>% lapply(., 
-                                             function(x) ifelse(str_detect(x, 'SRR'), 'epithelium', ()))
-
-
-# sample_annot$cells  <-  sample_annot$cells %>% str_replace('[.]', '_')
-# row.names(sample_annot) <- sample_annot$cells
-sample_annot$cells = NULL
-sample_annot %>% head
-sample_annot[625:635,] 
-sample_annot %>% tail
-sample_annot %>% nrow
-sample_annot$group %>% str_detect('pbmc') %>% table
 
 
 
+ProcAnnot <- function(count_mat) {
 
-# making the infercnv object
-# pass the ref group names
-# if we have identified cell groups, pass those as a chr vec
-infercnv_obj <- CreateInfercnvObject(raw_counts_matrix = count_mat,
-                                     annotations_file = sample_annot,
-                                     gene_order_file = gene_order,
-                                     ref_group_names = c('pbmc', 'epithelium'))
+    # making the sample annot file
+    # check if the cell prefix has pbmc3k
+    # mark those rows as normal
+    # otherwise malignant_{sample}
+    sample_annot <- data.frame(cells = colnames(count_mat))
+    row.names(sample_annot) <- sample_annot$cells
 
+    sample_annot$groups <- sample_annot$cells %>%
+        sapply(.,
+               function(x) ifelse(str_detect(x, "pbmc"), "pbmc", "malignant_tall" ))
+    sample_annot$cells <- NULL
+    #     names(sample_annot) <- NULL
 
-# set the output dir for the results
-out_dir <- '../outputs/infercnv_pbmc3k_epithelium_tnbc1/'
-
-
-
-
-# running infercnv
-# FROM VIGNETTE:
-# cutoff=1 works well for Smart-seq2, and cutoff=0.1 works well for 10x Genomics
-infercnv_obj <- infercnv::run(infercnv_obj,
-                             cutoff = 0.1, 
-                             out_dir = out_dir,
-                             cluster_by_groups = TRUE,
-                             denoise = TRUE,
-                             HMM = TRUE,
-                             num_threads = 32)
+    writeLines("Sample annot processed successfully!")
+    return(as.data.frame(sample_annot))
+}
 
 
-# check this obj properly
-after_run <- readRDS('../outputs/infercnv_pbmc3k_epithelium_tnbc1/run.final.infercnv_obj')
-after_run@reference_grouped_cell_indices
-after_run@observation
+RunInfercnv <- function(count_mat,
+                        sample_annot,
+                        gene_order,
+                        ref_group_names,
+                        n_cores,
+                        out_dir) {
+
+    # making the infercnv object
+    # pass the ref group names
+    # if we have identified cell groups, pass those as a chr vec
+    infercnv_obj <- CreateInfercnvObject(raw_counts_matrix = count_mat,
+                                         annotations_file = sample_annot,
+                                         gene_order_file = gene_order,
+                                         ref_group_names = ref_groups)
 
 
 
+
+    # running infercnv
+    # FROM VIGNETTE:
+    # cutoff=1 works well for Smart-seq2, and cutoff=0.1 works well for 10x Genomics
+    infercnv_obj <- infercnv::run(infercnv_obj,
+                                  cutoff = 0.1, 
+                                  out_dir = out_dir,
+                                  cluster_by_groups = TRUE,
+                                  denoise = TRUE,
+                                  HMM = TRUE,
+                                  num_threads = n_cores)
+
+}
+
+
+
+
+#### ---- MAIN SECTION ---- ####
+
+cmd_args <- commandArgs(trailingOnly = T)
+
+count_mat_path <- cmd_args[1]
+mat_type <- cmd_args[2]
+n_cores <- as.integer(cmd_args[3])
+out_dir <- cmd_args[4]
+ref_groups <- "pbmc"
+
+writeLines(str_glue("The input args are:\n
+                    count_mat_path: {count_mat_path}\n
+                    mat_type: {mat_type}\n
+                    n_cores: {n_cores}\n
+                    out_dir: {out_dir}\n"))
+
+# count_mat_path <- "../proc/pbmc3k_tall_ref_merged_counts.tsv.gz"
+ret_list <- ReadData(count_mat_path)
+count_mat <- data.frame(ret_list[[1]])
+gene_order <- data.frame(ret_list[[2]])
+
+
+sample_annot <- as.data.frame(ProcAnnot(count_mat))
+
+
+RunInfercnv(count_mat,
+            sample_annot,
+            gene_order,
+            ref_group_names,
+            n_cores,
+            out_dir)
