@@ -8,4 +8,7 @@
 #SBATCH --mail-type=BEGIN,FAIL,END
 #SBATCH --mail-user=suharto.banerjee@mdc.berlin.de
 
- fastq-dump --gzip --split-files --readids --outdir $1 $2
+# @param 1. outdir
+# @param 2. SRR ID
+
+fastq-dump --gzip --split-files --readids --outdir $1 $2
