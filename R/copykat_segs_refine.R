@@ -203,7 +203,7 @@ ggsave(tmp_plot)
 
 
 GetSegDistBreaks <- function(pred_mat,
-                             seg_interval = 1000000){
+                             seg_interval = 5000000){
 
     segs_brks_dist <- integer()
     for(i in 2:nrow(pred_mat)){
@@ -219,47 +219,53 @@ GetSegDistBreaks <- function(pred_mat,
     return(segs_brks_dist)
 }
 
+GetCopykatSegs <- function(pred_mat, segs_brks_dist){
 
-GetCopykatSegs <- function(per_chr_df, segs_brks_dist){
-
-    per_chr_df <- as.data.frame(per_chr_df)
-    per_chr_df <- per_chr_df[per_chr_df[,8] != "",]
-    start <- per_chr_df$start_position[1]
-    tmp_df <- data.frame(seqnames = character(1),
-                         start = character(1),
-                         end = character(1),
-                         cell_name = character(1),
-                         cnv_state = character(1))
-    per_chr_cnv_segs <- data.frame()
+    pred_mat <- as.data.frame(pred_mat)
+    pred_mat <- pred_mat[pred_mat[,8] != "",]
 
 
-    for(row_num in 1:(nrow(per_chr_df) - 1)){
 
-        if (per_chr_df[row_num,8] != per_chr_df[(row_num + 1),8] |
-            (per_chr_df$idx[row_num] %in% segs_brks_dist) |
-            per_chr_df$chromosome_name[row_num] != per_chr_df$chromosome_name[(row_num + 1)]) {
+    if(nrow(pred_mat) > 0){
 
-            if(per_chr_df$chromosome_name[row_num] != 23){
+        start <- pred_mat$start_position[1]
+        tmp_df <- data.frame(seqnames = character(1),
+                             start = character(1),
+                             end = character(1),
+                             cell_name = character(1),
+                             cnv_state = character(1))
+        cnv_segs <- data.frame()
 
-                tmp_df$seqnames <- paste0("chr", per_chr_df$chromosome_name[row_num])
-            } else{
 
-                tmp_df$seqnames <- "chrX"
+        for(row_num in 1:(nrow(pred_mat) - 1)){
+
+            if (pred_mat[row_num,8] != pred_mat[(row_num + 1),8] |
+                (pred_mat$idx[row_num] %in% segs_brks_dist) |
+                pred_mat$chromosome_name[row_num] != pred_mat$chromosome_name[(row_num + 1)]) {
+
+                if(pred_mat$chromosome_name[row_num] != 23){
+
+                    tmp_df$seqnames <- paste0("chr", pred_mat$chromosome_name[row_num])
+                } else{
+
+                    tmp_df$seqnames <- "chrX"
+                }
+                tmp_df$start <- start
+                tmp_df$end <- pred_mat$end_position[row_num]
+                tmp_df$cell_name <- colnames(pred_mat)[8]
+                tmp_df$cnv_state <- pred_mat[row_num,8]
+
+                cnv_segs <- rbind(cnv_segs, tmp_df)
+
+
+                start <- pred_mat$start_position[(row_num + 1)]
             }
-            tmp_df$start <- start
-            tmp_df$end <- per_chr_df$end_position[row_num]
-            tmp_df$cell_name <- colnames(per_chr_df)[8]
-            tmp_df$cnv_state <- per_chr_df[row_num,8]
-
-            per_chr_cnv_segs <- rbind(per_chr_cnv_segs, tmp_df)
-
-
-            start <- per_chr_df$start_position[(row_num + 1)]
         }
+        return(cnv_segs)
     }
 
-    return(per_chr_cnv_segs)
 }
+
 
 
 
@@ -399,22 +405,25 @@ system.time(copykat_cnv_segs <- foreach(chr = 1:length(pred_mat_grpd), .combine 
 })
 
 
+sub_raw_loc[1:5,1:8]
+
 # THIS WORKED FINALLY
 # THIS
 # THIS
 # THIS
 # THIS
+segs_brks_dist <- GetSegDistBreaks(sub_raw_loc)
+segs_brks_dist
 system.time(copykat_cnv_segs <- foreach(cell_num = 8:ncol(sub_raw_loc), .combine = "rbind") %dopar% {
-    if(sub_raw_loc[,cell_num] %>% grep ("amp", .) %>% length() > 0 |
-       sub_raw_loc[,cell_num] %>% grep ("del", .) %>% length() > 0){
-        GetCopykatSegs(sub_raw_loc[, c(1:7, cell_num)], segs_brks_dist)
-    #         GetCopykatSegs(pred_mat_grpd[[12]][, c(1:7, cell_num)], segs_brks_dist)
+                if(sub_raw_loc[,cell_num] %>% grep ("amp", .) %>% length() > 0 |
+                   sub_raw_loc[,cell_num] %>% grep ("del", .) %>% length() > 0){
+                    GetCopykatSegs(sub_raw_loc[, c(1:7, cell_num)], segs_brks_dist)
 
-    }
+                }
 
 })
 
-GetCopykatSegs(sub_raw_loc[, c(1:8)], segs_brks_dist)
+# GetCopykatSegs(sub_raw_loc[, c(1:8)], segs_brks_dist)
 
 copykat_cnv_segs %>% head()
 copykat_cnv_segs %>% nrow()
@@ -470,4 +479,9 @@ foreach(cell = 1:length(all_cells)) %dopar% {
     saveDigitalKaryotype(dig_kar_plt, save_path, all_cells[cell])
 }
 
+
+
+fwrite(x = copykat_cnv_segs,
+       file = "../proc/copykat_segs_refined.tsv.gz",
+       sep = "\t")
 
