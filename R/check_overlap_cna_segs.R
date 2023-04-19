@@ -1,4 +1,5 @@
 library(data.table)
+library(magrittr)
 library(tidyverse)
 library(GenomicRanges)
 
@@ -316,4 +317,56 @@ cnv_dk <- addPltLayers(cnv_dk,
 ggsave(tmp_plot)
 
 
+# plot comparison between tools
+comp_df <- fread("../proc/cnv_callers_comparison.tsv.gz")
 
+
+avg_nb_if <- mean(comp_df$numbat_infercnv)
+avg_nb_if
+
+
+avg_if_nb <- mean(comp_df$infercnv_numbat)
+avg_if_nb
+
+
+avg_nb_ck <- mean(comp_df$numbat_copykat)
+avg_nb_ck
+
+
+avg_ck_nb <- mean(comp_df$copykat_numbat)
+avg_ck_nb
+
+
+df_melt <- melt(comp_df)
+df_melt %>% head()
+
+df_melt <- df_melt %>% rename(Tools_Compared = "comp")
+df_melt
+
+
+
+tmp_plot <- "../plots/tmp/tmp_plot.pdf"
+
+
+ggplot(data = df_melt,
+       aes(Tools_Compared[1], value, color = Tools_Compared)) +
+geom_violin() + 
+geom_point() +
+geom_jitter() +
+scale_color_manual(values = c("red",
+                              "orange",
+                              "salmon",
+                              "blue",
+                              "yellow",
+                              "skyblue")) +
+facet_wrap(~ Tools_Compared) +
+theme(axis.ticks.x = element_blank(),
+      strip.text.x = element_blank(),
+      strip.text.y = element_blank()) +
+ggtitle("Fraction of common calls between any two tools")
+
+
+
+
+
+ggsave(tmp_plot)

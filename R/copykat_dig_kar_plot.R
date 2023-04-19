@@ -1,33 +1,158 @@
 library(tidyverse)
-library(stringr)
 library(data.table)
 
 
-raw_res <- read.table('../outputs/copykat_pbmc3k_epithelium_tnbc1/tnbc1_copykat_CNA_raw_results_gene_by_cell.txt',
-                      header = T)
+raw_res <- fread('../outputs/tnbc1/copykat_pbmc3k_epithelium_tnbc1/tnbc1_copykat_CNA_raw_results_gene_by_cell.txt',
+                 header = T)
+idx <- c(1:nrow(raw_res))
+raw_res <- cbind(idx, raw_res)
 raw_res[1:5,1:10]
+raw_res %>% nrow()
+raw_res <- as.data.frame(raw_res)
 
 
-cna_res <- read.table('../outputs/copykat_pbmc3k_epithelium_tnbc1/tnbc1_copykat_CNA_results.txt',
-                      header = T)
+cna_res <- fread('../outputs/tnbc1/copykat_pbmc3k_epithelium_tnbc1/tnbc1_copykat_CNA_results.txt',
+                 header = T)
 cna_res[1:5,1:10]
+cna_res %>% nrow()
+cna_res <- as.data.frame(cna_res)
+
+
+# binning is done by ck
+# counting the number of instances when the 
+# chrompos diff is more than 1MB
+# will break segs here
+count <- 0
+seg_brk <- integer()
+for(i in 2:nrow(cna_res)){
+
+    if(cna_res$abspos[i] - cna_res$abspos[(i - 1)] > 1000000 & cna_res$chrom[i] == cna_res$chrom[(i - 1)]){
+        
+        count <- count + 1
+        seg_brk <- c(seg_brk, i)
+    }
+
+}
+# checking with raw res
+count <- 0
+seg_brk <- integer()
+for(i in 2:nrow(raw_res)){
+
+    if(raw_res$abspos[i] - raw_res$abspos[(i - 1)] > 1000000 & raw_res$chrom[i] == raw_res$chrom[(i - 1)]){
+        
+        count <- count + 1
+        seg_brk <- c(seg_brk, (i - 1))
+    }
+
+}
+raw_res$abspos[21] - raw_res$abspos[(21 - 1)]
+cna_res$abspos[21] - cna_res$abspos[(21 - 1)]
+count
+seg_brk
+raw_res[26:28, 1:5]
+cna_res[idx,1:5]
+
+cna_res[50:52,1:5]
+cna_res[515:517,1:5]
+cna_res$chrompos[5] - cna_res$chrompos[4]
 
 
 
-copykat_preds <- read.table('../outputs/copykat_pbmc3k_epithelium_tnbc1/tnbc1_copykat_prediction.txt',
-                            header = T)
+sub_raw_res <- raw_res[,6:8:=NULL]
+sub_raw_res <- cbind(sub_raw_res[,1:5], raw_res %>% select(contains("tnbc")))
+sub_raw_res[1:5,1:8]
+sub_raw_res[,1:5]
+sub_raw_res %>% ncol() - 5
+sub_raw_res %>% nrow()
+
+
+sub_raw_loc <- cbind(sub_raw_res[,1:5], cna_gene_mat)
+
+
+fwrite(sub_raw_loc,
+       "../proc/copykat_geneLevel_230331.tsv.gz",
+       sep = "\t")
+sub_raw_loc <- fread("../proc/copykat_geneLevel_230331.tsv.gz")
+sub_raw_loc <- as.data.frame(sub_raw_loc)
+# I WAS HERE
+# BREAK SEGS AT LOCS WHERE IT IS MORE THAN 1MB
+sub_raw_loc %>%
+    group_by(chromosome_name) %>%
+    group_split(.) %>%
+    .[[20]] %>%
+    .[1:5, 1:10]
+
+
+sub_raw_loc <- sub_raw_loc %>%
+    group_by(chromosome_name) %>%
+    group_split(.)
+
+
+cell1 <- sub_raw_loc[[1]][, 1:6]
+cell1 %>% head
+cell1 <- as.data.frame(cell1)
+cell1 %>% pull(6)
+cell1[,6]
+cell1_rle <- cell1 %>% pull(6) %>% rle()
+cell1_rle
+
+prev_state <- cell1$
+for (i in 2:nrow(cell1)) {
+
+    
+    
+    if (cell1[i,1] %in% seg_brk) {
+        tmp_df$end[cr] <- cell1$end_position[i]
+        cna_segs_df <- rbind(cna_segs_df, tmp_df)
+    }
+    if(cell1[])
+}
+
+
+
+
+
+
+
+
+
+
+
+
+copykat_preds <- fread('../outputs/tnbc1/copykat_pbmc3k_epithelium_tnbc1/tnbc1_copykat_prediction.txt',
+                       header = T)
+copykat_preds %>% head
+copykat_preds <- as.data.frame(copykat_preds)
+copykat_preds %>% grep("tnbc", .)
+
+
+
+all_genes <- fread("../data/gene_chr_loc/hg38_gencode_v27.txt",
+                   fill = T)
+all_genes %>% nrow() 
+all_genes %>% head()
+
+all_genes$V5 %>% is.na() %>% length() == nrow(all_genes)
+all_genes$V5 <- NULL
 
 
 
 # change vals to amp or del
 # if val is > 0.05 or < -0.05
+ck_preds <- copykat_preds[grep("tnbc", copykat_preds$cell.names)]
+ck_preds %>% head()
+ck_preds %>% nrow()
+
 
 table(ck_preds$copykat.pred == 'aneuploid')
 aneu_cells <- ck_preds[ck_preds$copykat.pred == 'aneuploid',]
 mod_gene_mat <- raw_res[,aneu_cells$cell.names]
-cna_gene_mat <- mod_gene_mat %>% apply(., 2, function(x) ifelse(x > 0.05, 'amp', ifelse(x < -0.05, 'del', '')))
-mod_gene_mat[1:5,2900:2909]
+mod_gene_mat <- cna_res[,aneu_cells$cell.names]
+cna_gene_mat <- mod_gene_mat %>% apply(., 2, function(x) ifelse(x > 0.03, 'amp', ifelse(x < -0.03, 'del', '')))
+mod_gene_mat[1:5,1:5]
 cna_gene_mat[1:5,1:5]
+cna_gene_mat %>% nrow
+aneu_cells
 
 
 gene_loc <- raw_res %>% select(6,
@@ -37,6 +162,11 @@ gene_loc <- raw_res %>% select(6,
 gene_loc %>% head()
 cna_gloc <- cbind(gene_loc, cna_gene_mat)
 cna_gloc[1:5,1:10]
+cna_gloc %>% nrow()
+
+
+cna
+ck_obs_genes <- cna_gloc
 
 
 write.table(cna_gloc,
