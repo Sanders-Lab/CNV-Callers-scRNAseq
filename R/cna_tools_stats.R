@@ -89,31 +89,67 @@ nb_calls
 # 
 all_calls <- rbind(inf_calls,
                    ck_calls,
-                   nb_calls,
-                   fill = T)
+                   nb_calls[,1:2])
 all_calls
 all_calls %>% 
     nrow() / 3
 
 
-
-setnames(all_calls,
-         "V1",
-         "cell_name")
+all_calls$tool <- "tool"
 all_calls
 
-melt(all_calls[,2:ncol(all_calls)],
-     id.vars = c(colnames(all_calls)[2:7]))
 
+all_calls[1:796, "tool"] <- "InferCNV"
+all_calls[797:1592, "tool"] <- "Copykat"
+all_calls[1593:2388, "tool"] <- "Numbat"
+
+
+all_calls
 
 
 plot_table <- data.table()
-plot_table$cell_name <- all_calls$cell_name %>% 
-    rep(.,7)
+plot_table$tool <- all_calls$tool %>% rep(., 2)
 plot_table
 
 
+plot_table$count <- c(all_calls$n_amps, all_calls$n_dels)
 plot_table
+
+
+plot_table$cnv_call <- c(rep("n_amps", (nrow(plot_table) / 2)), rep("n_dels", (nrow(plot_table) / 2)))
+plot_table
+
+
+# adding numbat loh calls
+loh_calls <- data.table(tool = rep("Numbat", nrow(nb_calls)),
+                     count = nb_calls$n_loh,
+                     cnv_call = rep("n_loh", nrow(nb_calls)))
+loh_calls
+
+plot_table <- rbind(plot_table, loh_calls)
+plot_table
+
+
+tmp_plot <- "../plots/tmp/tmp_plot.pdf"
+
+plot_table_df <- as.data.frame(plot_table)
+cna_colors <- c('red', 'blue', "green")
+names(cna_colors) <- c('n_amps', 'n_dels', "n_loh")
+cna_colors
+
+
+pdf("../plots/cnv_callers_stats/cnv_counts_violin.pdf")
+ggplot(data = plot_table_df,
+       mapping = aes(x = cnv_call,
+                     y = count,
+                     colour = cnv_call)) +
+       geom_violin() +
+       geom_point() +
+       facet_grid(~ tool) +
+       scale_color_manual(values = c('red', 'blue', "green"))
+dev.off()
+ggsave(tmp_plot)
+
 
 
 
