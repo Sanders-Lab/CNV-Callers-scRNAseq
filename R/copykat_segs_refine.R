@@ -412,7 +412,15 @@ sub_raw_loc[1:5,1:8]
 # THIS
 # THIS
 # THIS
+n_cores <- 63
+cluster <- makeForkCluster(n_cores)
+doParallel::registerDoParallel(cluster)
+copykat_cnv_segs <- data.frame()
+
+
 segs_brks_dist <- GetSegDistBreaks(sub_raw_loc)
+segs_brks_dist <- GetSegDistBreaks(sub_raw_loc,
+                                   seg_interval = 1000000)
 segs_brks_dist
 system.time(copykat_cnv_segs <- foreach(cell_num = 8:ncol(sub_raw_loc), .combine = "rbind") %dopar% {
                 if(sub_raw_loc[,cell_num] %>% grep ("amp", .) %>% length() > 0 |
@@ -446,18 +454,47 @@ sub_raw_loc[,1:8] %>% filter(chromosome_name == 12) %>% .[,8] %>% grep("amp",.)
 
 
 source("../../digital_karyotype/R/utils.R")
-source("../../digital_karyotype/R/digital_karyotype.R")
 cnv_colors <- c('red', 'blue')
 names(cnv_colors) <- c('amp', 'del')
 tmp_plot <- "../plots/tmp/tmp_plot.pdf"
+tmp_dir <- "../plots/tmp"
 
-dig_kar_plt <- plot_digital_karyotype(type = "",
+dig_kar_plt <- plot_digital_karyotype(plot_ideo_only = F,
                                       layers_h2 = one_cell_cnv,
                                       fill_arg = "cnv_state",
                                       colors_arg_h2 = cnv_colors,
                                       legend_title_arg = "Copykat Calls",
                                       sub_title_arg = str_glue("Copykat CNV Calls: {one_cell_name}"),
-                                      plot_both_haplotypes = FALSE)
+                                      plot_both_haplotypes = FALSE,
+                                      save_digital_karyotype = T,
+                                      save_dir = tmp_dir)
+
+ggsave(tmp_plot)
+
+
+# plotting the genes for one cell
+sub_raw_loc <- as.data.table(sub_raw_loc)
+sub_raw_loc[1:5,1:10]
+one_cell_gene <- sub_raw_loc[, .(seqnames = chromosome_name,
+                                 start = start_position,
+                                 end = end_position)]
+one_cell_gene[, cell_name := "tnbc1_AAACCTGCACCTTGTC"
+              ][, cnv_state := sub_raw_loc[, 8]]
+one_cell_gene <- one_cell_gene[cnv_state != ""]
+one_cell_gene[, seqnames := paste0("chr", seqnames)]
+one_cell_gene
+
+
+
+dig_kar_plt <- plot_digital_karyotype(plot_ideo_only = F,
+                                      layers_h2 = one_cell_gene,
+                                      fill_arg = "cnv_state",
+                                      colors_arg_h2 = cnv_colors,
+                                      legend_title_arg = "Copykat Calls",
+                                      sub_title_arg = str_glue("Copykat CNV Calls: {one_cell_name}"),
+                                      plot_both_haplotypes = FALSE,
+                                      save_digital_karyotype = T,
+                                      save_dir = tmp_dir)
 
 ggsave(tmp_plot)
 
