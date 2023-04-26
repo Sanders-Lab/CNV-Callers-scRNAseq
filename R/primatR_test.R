@@ -6,10 +6,10 @@ install_github("daewoooo/primatR", force=TRUE)
 
 
 
-
+# START HERE
 library(primatR)
 library(data.table)
-library(magrittr)
+# library(magrittr)
 library(parallel)
 library(foreach)
 
@@ -17,8 +17,8 @@ library(foreach)
 
 ck_calls <- fread("../proc/copykat_tnb1_segs_refined.tsv.gz")
 ck_calls
-ck_calls$cell_name %>% 
-    unique() %>% 
+ck_calls$cell_name |> 
+    unique() |> 
     length()
 
 
@@ -28,37 +28,40 @@ inf_calls
 inf_calls <- inf_calls[cell_name %in% ck_calls$cell_name]
 
 
-inf_calls$cell_name %>% 
-    unique() %>% 
+inf_calls$cell_name |> 
+    unique() |> 
     length()
 
 
 nb_calls <- fread("../proc/numbat_tnbc_cna_segs.tsv.gz")
-nb_calls
+setnames(nb_calls,
+         "cnv_state_map",
+         "cnv_state")
 
 
-nb_calls <- nb_calls[cnv_state_map != ""]
+nb_calls <- nb_calls[cnv_state != ""]
 
 
 nb_calls <- nb_calls[cell_name %in% ck_calls$cell_name]
-nb_calls$cell_name %>% 
-    unique() %>% 
+nb_calls$cell_name |> 
+    unique() |> 
     length()
+nb_calls
 
 
-inf_gro <- makeGRangesFromDataFrame(inf_calls,
-                                    keep.extra.columns = T)
-inf_gro
-
-
-ck_gro <- makeGRangesFromDataFrame(ck_calls,
-                                   keep.extra.columns = T)
-ck_gro
-
-
-nb_gro <- makeGRangesFromDataFrame(nb_calls,
-                                   keep.extra.columns = T)
-nb_gro
+# inf_gro <- makeGRangesFromDataFrame(inf_calls,
+#                                     keep.extra.columns = T)
+# inf_gro
+# 
+# 
+# ck_gro <- makeGRangesFromDataFrame(ck_calls,
+#                                    keep.extra.columns = T)
+# ck_gro
+# 
+# 
+# nb_gro <- makeGRangesFromDataFrame(nb_calls,
+#                                    keep.extra.columns = T)
+# nb_gro
 
 
 
@@ -114,13 +117,69 @@ overlap_dt[SDTrackPercOverlap >= 50, .N]
 # using the lcd of the cells
 all_cells <- ck_calls[, unique(cell_name)]
 all_cells
-tools
-tools[1]
+ 
+check <- as.data.table(getSegDupOverlaps(makeGRangesFromDataFrame(get(tools[1])[cell_name == all_cells[1] &
+                                                                  cnv_state == "amp"],
+                                                         keep.extra.columns = T),
+                                makeGRangesFromDataFrame(get(tools[2])[cell_name == all_cells[1] &
+                                                         cnv_state == "amp"],
+                                                         keep.extra.columns = T)
+)
+)[, tool := tools[2]]
+check |>
+    print()
+t <- rbind(inf_overlaps, ck_overlaps, fill = T)
+t
+tmp_dt <- as.data.table(getSegDupOverlaps(makeGRangesFromDataFrame(get(tools[1])[cell_name == all_cells[1] &
+                                                                   cnv_state == "amp"],
+                                                               keep.extra.columns = T),
+                                          makeGRangesFromDataFrame(get(tools[2])[cell_name == all_cells[1] & cnv_state == "amp"],
+                                                                   keep.extra.columns = T)
+)
+)[, caller := tools[2]]
 
+
+tmp_dt <- rbind(tmp_dt,
+                as.data.table(getSegDupOverlaps(makeGRangesFromDataFrame(get(tools[1])[cell_name == all_cells[1] &
+                                                                         cnv_state == "del"],
+                                                                     keep.extra.columns = T),
+                                                makeGRangesFromDataFrame(get(tools[2])[cell_name == all_cells[1] & cnv_state == "del"],
+                                                                         keep.extra.columns = T)
+)
+                )[, caller := tools[2]], fill = T)
+
+
+
+
+if(nrow(get(tools[1])[cell_name == all_cells[1] &
+        cnv_state == "loh"]) > 0)
+{
+    tmp_dt <- rbind(tmp_dt,
+                    as.data.table(getSegDupOverlaps(makeGRangesFromDataFrame(get(tools[1])[cell_name == all_cells[1] &
+                                                                             cnv_state == "loh"],
+                                                                         keep.extra.columns = T),
+                                                    makeGRangesFromDataFrame(get(tools[2])[cell_name == all_cells[1] & cnv_state == "amp"],
+                                                                             keep.extra.columns = T)
+        )
+                    )[, caller := tools[2]
+                      ][, matched_call := "amp"], fill = T)
+
+    tmp_dt <- rbind(tmp_dt,
+                    as.data.table(getSegDupOverlaps(makeGRangesFromDataFrame(get(tools[1])[cell_name == all_cells[1] &
+                                                                             cnv_state == "loh"],
+                                                                         keep.extra.columns = T),
+                                                    makeGRangesFromDataFrame(get(tools[2])[cell_name == all_cells[1] & cnv_state == "del"],
+                                                                             keep.extra.columns = T)
+                    )
+                    )[, caller := tools[2]
+                      ][, matched_call := "del"], fill = T)
+}
+
+tmp_dt
 
 
 # REF = numbat
-n_cores <- 63
+n_cores <- 79
 cluster <- makeForkCluster(n_cores)
 doParallel::registerDoParallel(cluster)
 
@@ -140,13 +199,54 @@ system.time(
                     .combine = "rbind") %dopar%
                 {
 
-                    as.data.table(getSegDupOverlaps(makeGRangesFromDataFrame(get(tools[1])[cell_name == all_cells[cell_n]],
-                                                                             keep.extra.columns = T),
-                                                    makeGRangesFromDataFrame(get(tools[curr_tool])[cell_name == all_cells[cell_n]],
-                                                                             keep.extra.columns = T)
+                    tmp_dt <- as.data.table(getSegDupOverlaps(makeGRangesFromDataFrame(get(tools[1])[cell_name == all_cells[cell_n] &
+                                                                                       cnv_state == "amp"],
+                                                                                   keep.extra.columns = T),
+                                                              makeGRangesFromDataFrame(get(tools[curr_tool])[cell_name == all_cells[cell_n] & cnv_state == "amp"],
+                                                                                       keep.extra.columns = T)
                     )
-                    ) %>%
-                    .[, tool := tools[curr_tool]]
+                    )[, caller := tools[curr_tool]
+                    ][, matched_call := ""]
+
+                    
+                    tmp_dt <- rbind(tmp_dt,
+                                    as.data.table(getSegDupOverlaps(makeGRangesFromDataFrame(get(tools[1])[cell_name == all_cells[cell_n] &
+                                                                                       cnv_state == "del"],
+                                                                                   keep.extra.columns = T),
+                                                                    makeGRangesFromDataFrame(get(tools[curr_tool])[cell_name == all_cells[cell_n] & cnv_state == "del"],
+                                                                                             keep.extra.columns = T)
+                    )
+                                    )[, caller := tools[curr_tool]
+                                      ][, matched_call := ""], fill = T)
+
+
+
+
+                    if(nrow(get(tools[1])[cell_name == all_cells[cell_n] &
+                            cnv_state == "loh"]) > 0)
+                    {
+                        tmp_dt <- rbind(tmp_dt,
+                                        as.data.table(getSegDupOverlaps(makeGRangesFromDataFrame(get(tools[1])[cell_name == all_cells[cell_n] &
+                                                                                                 cnv_state == "loh"],
+                                                                                             keep.extra.columns = T),
+                                                                        makeGRangesFromDataFrame(get(tools[curr_tool])[cell_name == all_cells[cell_n] & cnv_state == "amp"],
+                                                                                                 keep.extra.columns = T)
+                            )
+                                        )[, caller := tools[curr_tool]
+                                          ][, matched_call := "amp"], fill = T)
+
+                        tmp_dt <- rbind(tmp_dt,
+                                        as.data.table(getSegDupOverlaps(makeGRangesFromDataFrame(get(tools[1])[cell_name == all_cells[cell_n] &
+                                                                                                 cnv_state == "loh"],
+                                                                                             keep.extra.columns = T),
+                                                                        makeGRangesFromDataFrame(get(tools[curr_tool])[cell_name == all_cells[cell_n] & cnv_state == "del"],
+                                                                                                 keep.extra.columns = T)
+                                        )
+                                        )[, caller := tools[curr_tool]
+                                          ][, matched_call := "del"], fill = T)
+                    }
+
+                    tmp_dt
                 }
 )
 parallel::stopCluster(cluster)
@@ -178,10 +278,13 @@ fwrite(x = nb_overlaps,
        sep = "\t")
 
 
+nb_overlaps <- fread("../proc/numbat_other_tools_overlap.tsv.gz")
+nb_overlaps
+
 
 
 # ref = INF
-n_cores <- 63
+n_cores <- 79
 cluster <- makeForkCluster(n_cores)
 doParallel::registerDoParallel(cluster)
 
@@ -191,26 +294,42 @@ tools <- c("inf_calls",
            "ck_calls")
 inf_overlaps <- data.table()
 system.time(
-            inf_overlaps <- foreach(curr_tool = 1:length(tools),
+            inf_overlaps <- foreach(curr_tool = 2:length(tools),
                                     .combine = "rbind") %:%
 
             foreach(cell_n = 1:length(all_cells),
                     .combine = "rbind") %dopar%
-                {
+            {
 
-                    as.data.table(getSegDupOverlaps(makeGRangesFromDataFrame(get(tools[1])[cell_name == all_cells[cell_n]],
-                                                                             keep.extra.columns = T),
-                                                    makeGRangesFromDataFrame(get(tools[curr_tool])[cell_name == all_cells[cell_n]],
-                                                                             keep.extra.columns = T)
-                    )
-                    ) %>%
-                    .[, tool := tools[curr_tool]]
+                tmp_dt <- as.data.table(getSegDupOverlaps(makeGRangesFromDataFrame(get(tools[1])[cell_name == all_cells[cell_n] &
+                                                                                   cnv_state == "amp"],
+                                                                               keep.extra.columns = T),
+                                                          makeGRangesFromDataFrame(get(tools[curr_tool])[cell_name == all_cells[cell_n] & cnv_state == "amp"],
+                                                                                   keep.extra.columns = T))
+                )[, caller := tools[curr_tool]
+                    ][, matched_call := ""]
 
-                #                     tmp_dt$tool <- tools[curr_tool]
-                }
+
+                tmp_dt <- rbind(tmp_dt,
+                                as.data.table(getSegDupOverlaps(makeGRangesFromDataFrame(get(tools[1])[cell_name == all_cells[cell_n] &
+                                                                                         cnv_state == "del"],
+                                                                                     keep.extra.columns = T),
+                                                                makeGRangesFromDataFrame(get(tools[curr_tool])[cell_name == all_cells[cell_n] & cnv_state == "del"],
+                                                                                         keep.extra.columns = T))
+                                )[, caller := tools[curr_tool]
+                                  ][, matched_call := ""])
+
+
+                tmp_dt
+            }
 )
 parallel::stopCluster(cluster)
 inf_overlaps
+
+
+# cleaning up inf to inf comparisons
+inf_overlaps[!tool %like% "inf"]
+inf_overlaps <- inf_overlaps[!tool %like% "inf"]
 
 
 # removing pointless cols
@@ -228,7 +347,7 @@ fwrite(x = inf_overlaps,
 
 
 # ref = CK
-n_cores <- 63
+n_cores <- 79
 cluster <- makeForkCluster(n_cores)
 doParallel::registerDoParallel(cluster)
 
@@ -238,22 +357,33 @@ tools <- c("ck_calls",
            "inf_calls")
 ck_overlaps <- data.table()
 system.time(
-            ck_overlaps <- foreach(curr_tool = 1:length(tools),
+            ck_overlaps <- foreach(curr_tool = 2:length(tools),
                                    .combine = "rbind") %:%
 
             foreach(cell_n = 1:length(all_cells),
                     .combine = "rbind") %dopar%
                 {
 
-                    as.data.table(getSegDupOverlaps(makeGRangesFromDataFrame(get(tools[1])[cell_name == all_cells[cell_n]],
-                                                                             keep.extra.columns = T),
-                                                    makeGRangesFromDataFrame(get(tools[curr_tool])[cell_name == all_cells[cell_n]],
-                                                                             keep.extra.columns = T)
-                    )
-                    ) %>%
-                    .[, tool := tools[curr_tool]]
+                tmp_dt <- as.data.table(getSegDupOverlaps(makeGRangesFromDataFrame(get(tools[1])[cell_name == all_cells[cell_n] &
+                                                                                   cnv_state == "amp"],
+                                                                               keep.extra.columns = T),
+                                                          makeGRangesFromDataFrame(get(tools[curr_tool])[cell_name == all_cells[cell_n] & cnv_state == "amp"],
+                                                                                   keep.extra.columns = T))
+                )[, caller := tools[curr_tool]
+                    ][, matched_call := ""]
 
-                #                     tmp_dt$tool <- tools[curr_tool]
+
+                tmp_dt <- rbind(tmp_dt,
+                                as.data.table(getSegDupOverlaps(makeGRangesFromDataFrame(get(tools[1])[cell_name == all_cells[cell_n] &
+                                                                                         cnv_state == "del"],
+                                                                                     keep.extra.columns = T),
+                                                                makeGRangesFromDataFrame(get(tools[curr_tool])[cell_name == all_cells[cell_n] & cnv_state == "del"],
+                                                                                         keep.extra.columns = T))
+                                )[, caller := tools[curr_tool]
+                                  ][, matched_call := ""])
+
+
+                tmp_dt
                 }
 )
 parallel::stopCluster(cluster)
