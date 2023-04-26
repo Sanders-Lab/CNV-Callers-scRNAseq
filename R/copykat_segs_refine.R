@@ -119,6 +119,12 @@ sub_raw_loc <- fread("../proc/copykat_geneLevel_230331.tsv.gz")
 sub_raw_loc <- as.data.frame(sub_raw_loc)
 sub_raw_loc %>% head(n = c(5,8))
 
+s <- 1
+e <- 10
+sub_raw_loc[s:e,] |>
+nrow()
+
+
 # I WAS HERE
 # BREAK SEGS AT LOCS WHERE IT IS MORE THAN 1MB
 sub_raw_loc %>%
@@ -231,11 +237,13 @@ GetCopykatSegs <- function(pred_mat){
 
 
     start <- pred_mat$start_position[1]
+    start_idx <- 1
     tmp_df <- data.frame(seqnames = character(1),
-                         start = character(1),
-                         end = character(1),
+                         start = integer(1),
+                         end = integer(1),
                          cell_name = character(1),
-                         cnv_state = character(1))
+                         cnv_state = character(1),
+                         n_genes = integer(1))
     cnv_segs <- data.frame()
 
 
@@ -248,23 +256,31 @@ GetCopykatSegs <- function(pred_mat){
             pred_mat$chromosome_name[row_num] != pred_mat$chromosome_name[(row_num + 1)]) {
 
 
-            tmp_df$chromosome_name <- pred_mat$chromosome_name[row_num]
+            if(pred_mat$chromosome_name[row_num] != 23) {
+
+                tmp_df$seqnames <- paste0("chr", pred_mat$chromosome_name[row_num])
+            } else {
+
+                tmp_df$seqnames <- "chrX"
+            }
             tmp_df$start <- start
 
             if(row_num == (nrow(pred_mat) - 1)) {
 
-                tmp_df$end_position <- pred_mat$end_position[(row_num + 1)]
+                tmp_df$end <- pred_mat$end_position[(row_num + 1)]
             } else {
 
-                tmp_df$end_position <- pred_mat$end_position[row_num]
+                tmp_df$end <- pred_mat$end_position[row_num]
             }
             tmp_df$cell_name <- colnames(pred_mat)[8]
             tmp_df$cnv_state <- pred_mat[row_num,8]
+            tmp_df$n_genes <- nrow(pred_mat[start_idx:row_num,])
 
             cnv_segs <- rbind(cnv_segs, tmp_df)
 
 
             start <- pred_mat$start_position[(row_num + 1)]
+            start_idx <- row_num + 1
         }
     }
 
@@ -425,10 +441,6 @@ copykat_cnv_segs <- data.frame()
 sub_raw_loc <- as.data.frame(sub_raw_loc)
 
 
-segs_brks_dist <- GetSegDistBreaks(sub_raw_loc)
-segs_brks_dist <- GetSegDistBreaks(sub_raw_loc,
-                                   seg_interval = 1000000)
-segs_brks_dist
 system.time(copykat_cnv_segs <- foreach(cell_num = 8:ncol(sub_raw_loc), .combine = "rbind") %dopar% {
                 if(sub_raw_loc[,cell_num] %>% grep ("amp", .) %>% length() > 0 |
                    sub_raw_loc[,cell_num] %>% grep ("del", .) %>% length() > 0){
@@ -438,8 +450,7 @@ system.time(copykat_cnv_segs <- foreach(cell_num = 8:ncol(sub_raw_loc), .combine
 
 })
 
-# GetCopykatSegs(sub_raw_loc[, c(1:8)], segs_brks_dist)
-
+parallel::stopCluster(cluster)
 copykat_cnv_segs %>% head()
 
 # cosmetic changes for loss of focus
@@ -473,7 +484,6 @@ one_cell_cnv$seqnames %>%
     unique()
 
 one_cell_cnv[one_cell_cnv$seqnames == "chr2",]
-parallel::stopCluster(cluster)
 sub_raw_loc[,1:8] %>% filter(chromosome_name == 12) %>% .[,8] %>% grep("amp",.)
 
 

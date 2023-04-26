@@ -49,11 +49,13 @@ GetInfercnvSegs <- function(pred_mat){
 
 
     start <- pred_mat$start[1]
+    start_idx <- 1
     tmp_df <- data.frame(seqnames = character(1),
-                         start = character(1),
-                         end = character(1),
+                         start = integer(1),
+                         end = integer(1),
                          cell_name = character(1),
-                         cnv_state = character(1))
+                         cnv_state = character(1),
+                         n_genes = integer(1))
     cnv_segs <- data.frame()
 
 
@@ -78,11 +80,13 @@ GetInfercnvSegs <- function(pred_mat){
             }
             tmp_df$cell_name <- colnames(pred_mat)[5]
             tmp_df$cnv_state <- pred_mat[row_num,5]
+            tmp_df$n_genes <- nrow(pred_mat[start_idx:row_num,])
 
             cnv_segs <- rbind(cnv_segs, tmp_df)
 
 
             start <- pred_mat$start[(row_num + 1)]
+            start_idx <- row_num + 1
         }
     }
 
@@ -178,7 +182,7 @@ tnbc_cells_label[seqnames == "chr20"
 
 
 infercnv_cnv_segs$cell_name[1]
-infercnv_cnv_segs[seqnames == "chr21" &
+infercnv_cnv_segs[seqnames == "chr20" &
                   cell_name == infercnv_cnv_segs[1, cell_name]]
 
 
