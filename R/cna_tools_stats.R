@@ -17,9 +17,6 @@ infercnv_segs <- infercnv_segs[cell_name %in% copykat_segs$cell_name]
 
 numbat_segs <- fread("../proc/numbat_tnbc_cna_segs.tsv.gz")
 numbat_segs <- numbat_segs[cell_name %in% copykat_segs$cell_name]
-setnames(numbat_segs,
-         "cnv_state_map",
-         "cnv_state")
 numbat_segs <- numbat_segs[cnv_state != ""]
 numbat_segs
 
@@ -391,3 +388,84 @@ ggtitle("Proportions of calls retained after 50% overlap")
 dev.off()
 
 
+
+# n_genes vs n_segs
+numbat_segs
+genes_segs <- data.table()
+genes_segs <- rbind(genes_segs,
+                    infercnv_segs[, .(n_genes = sum(n_genes)), by = .(cell_name, cnv_state)
+                                  ][, caller := "infercnv"],
+                    copykat_segs[, .(n_genes = sum(n_genes)), by = .(cell_name, cnv_state)
+                                 ][, caller := "copykat"])
+genes_segs
+
+numbat_genes_segs <- numbat_segs[, .(n_genes = sum(n_genes)), by = .(cell_name, cnv_state)
+                                 ][, caller := "numbat"]
+nb_segs_tmp <- numbat_segs[, .(n_segs = .N), by = .(cell_name, cnv_state)
+                                ][, caller := "infercnv"]
+numbat_genes_segs
+numbat_genes_segs <- cbind(numbat_genes_segs, nb_segs_tmp$n_segs)
+setnames(numbat_genes_segs, "V2", "n_segs")
+
+segs_tmp <- data.table()
+segs_tmp <- rbind(segs_tmp,
+                  infercnv_segs[, .(n_segs = .N), by = .(cell_name, cnv_state)
+                                ][, caller := "infercnv"],
+                  copykat_segs[, .(n_segs = .N), by = .(cell_name, cnv_state)
+                               ][, caller := "copykat"])
+segs_tmp
+
+genes_segs <- cbind(genes_segs, segs_tmp$n_segs)
+setnames(genes_segs, "V2", "n_segs")
+genes_segs
+
+ck_genes_segs <- genes_segs[caller == "copykat"]
+inf_genes_segs <- genes_segs[caller == "infercnv"]
+
+#     infercnv_segs[, .(n_genes = sum(n_genes)), by = .(cell_name, cnv_state)
+                                ][, caller := "infercnv"],
+
+
+# plotting
+pdf("../plots/cnv_callers_stats/cnv_copykat_corr_genes_segs.pdf")
+ggplot(data = ck_genes_segs,
+       mapping = aes(x = n_segs,
+                     y = n_genes,
+                     colour = cnv_state)) +
+geom_point() +
+geom_jitter() +
+geom_smooth(method = "lm",
+            show.legend = T) +
+scale_color_manual(values = cnv_colors) +
+ggtitle("Copykat - Correlation between n_genes and n_segs")
+dev.off()
+
+ggsave(tmp_plot)
+
+
+pdf("../plots/cnv_callers_stats/cnv_infercnv_corr_genes_segs.pdf")
+ggplot(data = inf_genes_segs,
+       mapping = aes(x = n_segs,
+                     y = n_genes,
+                     colour = cnv_state)) +
+geom_point() +
+geom_jitter(width = 10, height = 10) +
+geom_smooth(method = "lm",
+            show.legend = T) +
+scale_color_manual(values = cnv_colors) +
+ggtitle("Infercnv - Correlation between n_genes and n_segs")
+dev.off()
+
+
+pdf("../plots/cnv_callers_stats/cnv_numbat_corr_genes_segs.pdf")
+ggplot(data = numbat_genes_segs,
+       mapping = aes(x = n_segs,
+                     y = n_genes,
+                     colour = cnv_state)) +
+geom_point() +
+geom_jitter() +
+geom_smooth(method = "lm",
+            show.legend = T) +
+scale_color_manual(values = cnv_colors) +
+ggtitle("Numbat - Correlation between n_genes and n_segs")
+dev.off()
