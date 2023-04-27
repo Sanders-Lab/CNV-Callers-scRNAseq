@@ -14,12 +14,13 @@ nb_calls <- joint_post[, .(seqnames = CHROM,
                            start = seg_start,
                            end = seg_end,
                            cell_name = cell,
-                           cnv_state_map)]
+                           cnv_state = cnv_state_map,
+                           n_genes)]
 nb_calls
 
 
 # replacing neu with ""
-nb_calls[, cnv_state_map := str_replace(cnv_state_map, "neu", "")]
+nb_calls[, cnv_state := str_replace(cnv_state, "neu", "")]
 nb_calls
 
 
