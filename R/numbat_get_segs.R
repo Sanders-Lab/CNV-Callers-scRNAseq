@@ -10,12 +10,14 @@ joint_post
 # joint_post[cnv_state == "amp", .N, by = cell]
 
 
-nb_calls <- joint_post[, .(seqnames = CHROM,
-                           start = seg_start,
-                           end = seg_end,
-                           cell_name = cell,
-                           cnv_state = cnv_state_map,
-                           n_genes)]
+nb_calls <- joint_post[, .(
+    seqnames = CHROM,
+    start = seg_start,
+    end = seg_end,
+    cell_name = cell,
+    cnv_state = cnv_state_map,
+    n_genes
+)]
 nb_calls
 
 
@@ -25,12 +27,16 @@ nb_calls
 
 
 # changing the cell_name to match other tools
-nb_calls[, cell_name := gsub("^",
-                            "tnbc1_",
-                            cell_name)]
-nb_calls[, cell_name := gsub("-1",
-                            "",
-                            cell_name)]
+nb_calls[, cell_name := gsub(
+    "^",
+    "tnbc1_",
+    cell_name
+)]
+nb_calls[, cell_name := gsub(
+    "-1",
+    "",
+    cell_name
+)]
 nb_calls
 
 
@@ -40,9 +46,11 @@ nb_calls
 
 
 
-fwrite(x = nb_calls,
-       file = "../proc/numbat_tnbc_cna_segs.tsv.gz",
-       sep = "\t")
+fwrite(
+    x = nb_calls,
+    file = "../proc/numbat_tnbc_cna_segs.tsv.gz",
+    sep = "\t"
+)
 
 
 
@@ -51,24 +59,19 @@ nb_calls[cnv_state_map == "del", .N, by = cell_name]
 
 
 
-nb_calls$cell %>% 
-    unique() %>% 
+nb_calls$cell %>%
+    unique() %>%
     length()
 
-grep("amp", nb_calls$cnv_state) %>% 
+grep("amp", nb_calls$cnv_state) %>%
     length()
 nb_calls[, count()]
 
-nb_calls[cnv_state == "amp", .N, by = cell
-         ][, unique(N)]
+nb_calls[cnv_state == "amp", .N, by = cell][, unique(N)]
 
 nb_calls[, unique(cnv_state)]
 
-nb_calls[,length(grep("amp", cnv_state)), by = cell
-         ][, unique(V1)]
-                                                     
-nb_calls[,length(grep("loh", cnv_state)), by = cell
-         ][, unique(V1)]
-nb_calls[, length(grep("del", cnv_state)), by = cell
-         ][, unique(V1)]
+nb_calls[, length(grep("amp", cnv_state)), by = cell][, unique(V1)]
 
+nb_calls[, length(grep("loh", cnv_state)), by = cell][, unique(V1)]
+nb_calls[, length(grep("del", cnv_state)), by = cell][, unique(V1)]

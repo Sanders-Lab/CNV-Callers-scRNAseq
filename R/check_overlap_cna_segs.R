@@ -35,44 +35,53 @@ if_segs
 
 # create gro
 nb_gro <- makeGRangesFromDataFrame(nb_segs,
-                                   keep.extra.columns = T)
+    keep.extra.columns = T
+)
 nb_gro
 
 
 ck_gro <- makeGRangesFromDataFrame(ck_segs,
-                                   keep.extra.columns = T)
+    keep.extra.columns = T
+)
 ck_gro
 
 
 if_gro <- makeGRangesFromDataFrame(if_segs,
-                                   keep.extra.columns = T)
+    keep.extra.columns = T
+)
 if_gro
 
 
 gene_ranges <- fread("../data/gene_chr_loc/hg38_gencode_v27.txt",
-                     fill = T,
-                     sep = "\t")
-gene_ranges[gene_ranges$V5 != NA,] 
-gene_ranges$V5 %>% is.na() %>% length()
+    fill = T,
+    sep = "\t"
+)
+gene_ranges[gene_ranges$V5 != NA, ]
+gene_ranges$V5 %>%
+    is.na() %>%
+    length()
 gene_ranges$V5 <- NULL
 gene_ranges
 
 
-gene_ranges <- gene_ranges %>% dplyr::rename(gene = "V1",
-                                             seqnames = "V2",
-                                             start = "V3",
-                                             end = "V4")
+gene_ranges <- gene_ranges %>% dplyr::rename(
+    gene = "V1",
+    seqnames = "V2",
+    start = "V3",
+    end = "V4"
+)
 gene_ranges$seqnames %>% unique()
 
 
 # dropping chr Y and M
-gene_ranges <- gene_ranges[seqnames != "chrY",]
-gene_ranges <- gene_ranges[seqnames != "chrM",]
+gene_ranges <- gene_ranges[seqnames != "chrY", ]
+gene_ranges <- gene_ranges[seqnames != "chrM", ]
 gene_ranges
 
 
 gene_gro <- makeGRangesFromDataFrame(gene_ranges,
-                                     keep.extra.columns = T)
+    keep.extra.columns = T
+)
 gene_gro
 
 
@@ -96,30 +105,39 @@ gene_dk <- plotSkeletonH2(ideo_df)
 
 
 gene_dk <- addPltLayers(gene_dk,
-                        gene_ranges,
-                        2,
-                        "fill",
-                        col_gene,
-                        "Genes",
-                        title = "Gene Locations")
+    gene_ranges,
+    2,
+    "fill",
+    col_gene,
+    "Genes",
+    title = "Gene Locations"
+)
 ggsave(tmp_plot)
 
 
-cna_glist <- GRangesList(nb_gro, if_gro, ck_gro) 
+cna_glist <- GRangesList(nb_gro, if_gro, ck_gro)
 names(cna_glist) <- c("numbat_cna", "infercnv_cna", "copykat_cna")
 cna_glist
 
 
-# grouping by cells 
-nb_segs_cell_list <- nb_segs %>% group_by(cell_name) %>% group_split(.) 
-if_segs_cell_list <- if_segs %>% group_by(cell_name) %>% group_split(.)
-ck_segs_cell_list <- ck_segs %>% group_by(cell_name) %>% group_split(.)
+# grouping by cells
+nb_segs_cell_list <- nb_segs %>%
+    group_by(cell_name) %>%
+    group_split(.)
+if_segs_cell_list <- if_segs %>%
+    group_by(cell_name) %>%
+    group_split(.)
+ck_segs_cell_list <- ck_segs %>%
+    group_by(cell_name) %>%
+    group_split(.)
 
 
 # getting the least common cells
-common_cells <- Reduce(intersect, list(nb_segs$cell_name, 
-                                       if_segs$cell_name,
-                                       ck_segs$cell_name))
+common_cells <- Reduce(intersect, list(
+    nb_segs$cell_name,
+    if_segs$cell_name,
+    ck_segs$cell_name
+))
 common_cells %>% length()
 common_cells %>% head()
 
@@ -127,11 +145,15 @@ common_cells %>% head()
 # subsetting the higher cell dfs by the common cells
 nb_segs_sub <- nb_segs %>% dplyr::filter(cell_name %in% common_cells)
 nb_segs_sub %>% head()
-nb_segs_sub$cell_name %>% unique() %>% length()
+nb_segs_sub$cell_name %>%
+    unique() %>%
+    length()
 
 
 if_segs_sub <- if_segs %>% dplyr::filter(cell_name %in% common_cells)
-if_segs_sub$cell_name %>% unique() %>% length()
+if_segs_sub$cell_name %>%
+    unique() %>%
+    length()
 
 
 # QND TESTS WITH 1 CELL CNA
@@ -145,12 +167,13 @@ ck1_cell <- ck_segs[cell_name == cell1]
 
 
 # THIS FUNCTION WORKS!!!!
-CalcOverlapProp <- function(tool1_cell, tool2_cell){
-
+CalcOverlapProp <- function(tool1_cell, tool2_cell) {
     tool1_cell_gro <- makeGRangesListFromDataFrame(tool1_cell,
-                                                keep.extra.columns = T)
+        keep.extra.columns = T
+    )
     tool2_cell_gro <- makeGRangesListFromDataFrame(tool2_cell,
-                                                keep.extra.columns = T)
+        keep.extra.columns = T
+    )
 
 
 
@@ -159,8 +182,8 @@ CalcOverlapProp <- function(tool1_cell, tool2_cell){
     # now need to implement for all the cells.
     overlaps <- GenomicRanges::findOverlaps(tool1_cell_gro, tool2_cell_gro)
 
-    tool1_hits <- tool1_cell[overlaps@from,]
-    tool2_hits <- tool2_cell[overlaps@to,]
+    tool1_hits <- tool1_cell[overlaps@from, ]
+    tool2_hits <- tool2_cell[overlaps@to, ]
 
 
     # getting the unique ranges
@@ -171,9 +194,10 @@ CalcOverlapProp <- function(tool1_cell, tool2_cell){
 
     # this gives the percent
     # NEED TO PARALLELIZE THIS!!!
-    return(list(nrow(tool1_hits_retain) / nrow(tool1_cell),
-                nrow(tool2_hits_retain) / nrow(tool2_cell)))
-
+    return(list(
+        nrow(tool1_hits_retain) / nrow(tool1_cell),
+        nrow(tool2_hits_retain) / nrow(tool2_cell)
+    ))
 }
 
 nb_no_loh <- nb1_cell[cnv_state != "loh"]
@@ -185,12 +209,14 @@ library(foreach)
 library(parallel)
 
 
-comp_cnv <- data.table(numbat_infercnv = double(length(common_cells)),
-                       infercnv_numbat = double(length(common_cells)),
-                       numbat_copykat = double(length(common_cells)),
-                       copykat_numbat = double(length(common_cells)),
-                       infercnv_copykat = double(length(common_cells)),
-                       copykat_infercnv = double(length(common_cells)))
+comp_cnv <- data.table(
+    numbat_infercnv = double(length(common_cells)),
+    infercnv_numbat = double(length(common_cells)),
+    numbat_copykat = double(length(common_cells)),
+    copykat_numbat = double(length(common_cells)),
+    infercnv_copykat = double(length(common_cells)),
+    copykat_infercnv = double(length(common_cells))
+)
 
 
 
@@ -204,22 +230,26 @@ nb_segs_sub <- nb_segs_sub[cnv_state != "loh"]
 # but worked
 start <- Sys.time()
 foreach(c = 1:length(common_cells)) %do% {
-
-
-    temp_list <- CalcOverlapProp(nb_segs_sub[cell_name == common_cells[c]],
-                                 if_segs_sub[cell_name == common_cells[c]])
+    temp_list <- CalcOverlapProp(
+        nb_segs_sub[cell_name == common_cells[c]],
+        if_segs_sub[cell_name == common_cells[c]]
+    )
 
     comp_cnv$numbat_infercnv[c] <- temp_list[[1]]
     comp_cnv$infercnv_numbat[c] <- temp_list[[2]]
 
-    temp_list <- CalcOverlapProp(nb_segs_sub[cell_name == common_cells[c]],
-                                 ck_segs[cell_name == common_cells[c]])
+    temp_list <- CalcOverlapProp(
+        nb_segs_sub[cell_name == common_cells[c]],
+        ck_segs[cell_name == common_cells[c]]
+    )
 
     comp_cnv$numbat_copykat[c] <- temp_list[[1]]
     comp_cnv$copykat_numbat[c] <- temp_list[[2]]
 
-    temp_list <- CalcOverlapProp(if_segs_sub[cell_name == common_cells[c]],
-                                 ck_segs[cell_name == common_cells[c]])
+    temp_list <- CalcOverlapProp(
+        if_segs_sub[cell_name == common_cells[c]],
+        ck_segs[cell_name == common_cells[c]]
+    )
 
     comp_cnv$infercnv_copykat[c] <- temp_list[[1]]
     comp_cnv$copykat_infercnv[c] <- temp_list[[2]]
@@ -231,17 +261,21 @@ parallel::stopCluster(cluster)
 
 
 fwrite(comp_cnv,
-       "../proc/cnv_callers_comparison.tsv.gz",
-       sep = "\t")
+    "../proc/cnv_callers_comparison.tsv.gz",
+    sep = "\t"
+)
 
 
 
 nb_cell_gro <- makeGRangesListFromDataFrame(nb_cell,
-                                            keep.extra.columns = T)
+    keep.extra.columns = T
+)
 if_cell_gro <- makeGRangesListFromDataFrame(if_cell,
-                                            keep.extra.columns = T)
+    keep.extra.columns = T
+)
 ck_cell_gro <- makeGRangesListFromDataFrame(ck_cell,
-                                            keep.extra.columns = T)
+    keep.extra.columns = T
+)
 
 
 
@@ -252,8 +286,8 @@ nb_if_overlap <- GenomicRanges::findOverlaps(nb_cell_gro, if_cell_gro)
 nb_ck_overlap <- GenomicRanges::findOverlaps(nb_cell_gro, ck_cell_gro)
 if_ck_overlap <- GenomicRanges::findOverlaps(if_cell_gro, ck_cell_gro)
 
-nb_hits <- nb_1cell[nb_if_overlap@from,]
-if_hits <- if_1cell[nb_if_overlap@to,]
+nb_hits <- nb_1cell[nb_if_overlap@from, ]
+if_hits <- if_1cell[nb_if_overlap@to, ]
 
 
 nb_hits %>% head()
@@ -296,23 +330,26 @@ names(cnv_col) <- c("amp", "del")
 cnv_dk <- plotSkeletonH2(ideo_df)
 
 
-cnv_dk <- addPltLayers(cnv_dk,
-                        nb_hits_common,
-                        2,
-                        "cnv_state",
-                        ncnv_col,
-                        "Numbat CNV Calls")
+cnv_dk <- addPltLayers(
+    cnv_dk,
+    nb_hits_common,
+    2,
+    "cnv_state",
+    ncnv_col,
+    "Numbat CNV Calls"
+)
 
 
 cnv_dk <- addPltLayers(cnv_dk,
-                        if_hits_common,
-                        2,
-                        "cnv_state",
-                        cnv_col,
-                        "InferCNV CNV Calls",
-                        y_min = 1,
-                        y_max = 1.5,
-                        title = "CNV Callers Comparison 1 cell")
+    if_hits_common,
+    2,
+    "cnv_state",
+    cnv_col,
+    "InferCNV CNV Calls",
+    y_min = 1,
+    y_max = 1.5,
+    title = "CNV Callers Comparison 1 cell"
+)
 
 ggsave(tmp_plot)
 
@@ -348,22 +385,28 @@ df_melt
 tmp_plot <- "../plots/tmp/tmp_plot.pdf"
 
 
-ggplot(data = df_melt,
-       aes(Tools_Compared[1], value, color = Tools_Compared)) +
-geom_violin() + 
-geom_point() +
-geom_jitter() +
-scale_color_manual(values = c("red",
-                              "orange",
-                              "salmon",
-                              "blue",
-                              "yellow",
-                              "skyblue")) +
-facet_wrap(~ Tools_Compared) +
-theme(axis.ticks.x = element_blank(),
-      strip.text.x = element_blank(),
-      strip.text.y = element_blank()) +
-ggtitle("Fraction of common calls between any two tools")
+ggplot(
+    data = df_melt,
+    aes(Tools_Compared[1], value, color = Tools_Compared)
+) +
+    geom_violin() +
+    geom_point() +
+    geom_jitter() +
+    scale_color_manual(values = c(
+        "red",
+        "orange",
+        "salmon",
+        "blue",
+        "yellow",
+        "skyblue"
+    )) +
+    facet_wrap(~Tools_Compared) +
+    theme(
+        axis.ticks.x = element_blank(),
+        strip.text.x = element_blank(),
+        strip.text.y = element_blank()
+    ) +
+    ggtitle("Fraction of common calls between any two tools")
 
 
 

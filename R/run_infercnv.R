@@ -8,9 +8,9 @@ library(Seurat)
 # it also generates sample annot file
 # required for the run here
 # doing it here maintains consistent cell ids
-# 
+#
 # @param 1. count_mat_path: combined count mat
-# @param 2. mat_type: the count mat type. 
+# @param 2. mat_type: the count mat type.
 #           for 10x, pass t (Default)
 # @param 3: n_cores
 # @param 4: out_dir
@@ -20,7 +20,7 @@ library(Seurat)
 
 # read in the combined matrix.
 # gene names need to be row.names for both count mat
-# and the gene loc mat 
+# and the gene loc mat
 # convert the df to matrix? check if works without
 # gene_mat <- read.table("../proc/pbmc3k_tnbc1_ref_merged_counts.tsv.gz",
 #                        row.names = 1)
@@ -28,18 +28,16 @@ library(Seurat)
 ReadData <- function(count_mat_path,
                      gene_order_path = "../data/gene_chr_loc/hg38_gencode_v27.txt",
                      mat_type = "c") {
-
-    if(mat_type == "t") {
-    
+    if (mat_type == "t") {
         count_mat <- Read10X(count_mat_path)
-    } 
-    if(mat_type == "c") {
-
+    }
+    if (mat_type == "c") {
         count_mat <- read.table(count_mat_path)
     }
 
     gene_order <- read.table(gene_order_path,
-                             row.names = 1)
+        row.names = 1
+    )
 
     writeLines("Read in the Data!")
     return(list(count_mat, gene_order))
@@ -49,7 +47,6 @@ ReadData <- function(count_mat_path,
 
 
 ProcAnnot <- function(count_mat) {
-
     # making the sample annot file
     # check if the cell prefix has pbmc3k
     # mark those rows as normal
@@ -58,8 +55,10 @@ ProcAnnot <- function(count_mat) {
     row.names(sample_annot) <- sample_annot$cells
 
     sample_annot$groups <- sample_annot$cells %>%
-        sapply(.,
-               function(x) ifelse(str_detect(x, "pbmc"), "pbmc", "malignant_tall" ))
+        sapply(
+            .,
+            function(x) ifelse(str_detect(x, "pbmc"), "pbmc", "malignant_tall")
+        )
     sample_annot$cells <- NULL
     #     names(sample_annot) <- NULL
 
@@ -74,14 +73,15 @@ RunInfercnv <- function(count_mat,
                         ref_group_names,
                         n_cores,
                         out_dir) {
-
     # making the infercnv object
     # pass the ref group names
     # if we have identified cell groups, pass those as a chr vec
-    infercnv_obj <- CreateInfercnvObject(raw_counts_matrix = count_mat,
-                                         annotations_file = sample_annot,
-                                         gene_order_file = gene_order,
-                                         ref_group_names = ref_groups)
+    infercnv_obj <- CreateInfercnvObject(
+        raw_counts_matrix = count_mat,
+        annotations_file = sample_annot,
+        gene_order_file = gene_order,
+        ref_group_names = ref_groups
+    )
 
 
 
@@ -90,13 +90,13 @@ RunInfercnv <- function(count_mat,
     # FROM VIGNETTE:
     # cutoff=1 works well for Smart-seq2, and cutoff=0.1 works well for 10x Genomics
     infercnv_obj <- infercnv::run(infercnv_obj,
-                                  cutoff = 0.1, 
-                                  out_dir = out_dir,
-                                  cluster_by_groups = TRUE,
-                                  denoise = TRUE,
-                                  HMM = TRUE,
-                                  num_threads = n_cores)
-
+        cutoff = 0.1,
+        out_dir = out_dir,
+        cluster_by_groups = TRUE,
+        denoise = TRUE,
+        HMM = TRUE,
+        num_threads = n_cores
+    )
 }
 
 
@@ -127,9 +127,11 @@ gene_order <- data.frame(ret_list[[2]])
 sample_annot <- as.data.frame(ProcAnnot(count_mat))
 
 
-RunInfercnv(count_mat,
-            sample_annot,
-            gene_order,
-            ref_group_names,
-            n_cores,
-            out_dir)
+RunInfercnv(
+    count_mat,
+    sample_annot,
+    gene_order,
+    ref_group_names,
+    n_cores,
+    out_dir
+)

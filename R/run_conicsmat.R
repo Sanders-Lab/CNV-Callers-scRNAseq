@@ -8,14 +8,14 @@ library(data.table)
 
 ReadData <- function(obs_ref_dir,
                      reg_dir = "../conicsmat_test/data/chromosome_arm_positions_grch38.txt") {
-
     obs_ref_mat <- fread(obs_ref_dir)
     obs_ref_mat <- setnames(obs_ref_mat, "V1", "gene")
 
 
     regions <- fread(reg_dir,
-                     sep="\t",
-                     header = T)
+        sep = "\t",
+        header = T
+    )
 
 
     return(list(obs_ref_mat, regions))
@@ -25,20 +25,25 @@ ReadData <- function(obs_ref_dir,
 
 
 GetGeneLoc <- function(gene_names) {
+    hmart <- useMart(
+        biomart = "ENSEMBL_MART_ENSEMBL",
+        dataset = "hsapiens_gene_ensembl"
+    )
 
-    hmart <- useMart(biomart =  "ENSEMBL_MART_ENSEMBL",
-                     dataset = "hsapiens_gene_ensembl")
 
-
-    gene_pos <- biomaRt::getBM(attributes=c('ensembl_gene_id',
-                                            'hgnc_symbol',
-                                            'chromosome_name',
-                                            'start_position',
-                                            'end_position'),
-                               filters ='hgnc_symbol',
-                               values = gene_names,
-                               mart = hmart,
-                               useCache = F)
+    gene_pos <- biomaRt::getBM(
+        attributes = c(
+            "ensembl_gene_id",
+            "hgnc_symbol",
+            "chromosome_name",
+            "start_position",
+            "end_position"
+        ),
+        filters = "hgnc_symbol",
+        values = gene_names,
+        mart = hmart,
+        useCache = F
+    )
 
 
     return(gene_pos)
@@ -50,37 +55,40 @@ GetGeneLoc <- function(gene_names) {
 ProcConicsmatData <- function(obs_ref_mat,
                               gene_pos,
                               normal_prefix,
-                              aneu_prefix){
-
-
+                              aneu_prefix) {
     obs_ref_mat <- filterMatrix(obs_ref_mat,
-                                gene_pos[,"hgnc_symbol"],
-                                minCells=5)
+        gene_pos[, "hgnc_symbol"],
+        minCells = 5
+    )
     norm_factor <- calcNormFactors(obs_ref_mat)
 
 
-    all_cells <- colnames(obs_ref_mat[,-1])
-    normal_cells <- c(1:colnames(obs_ref_mat[,-1]) %>% 
-                      str_detect(., normal_prefix) %>%
-                      sum(.))
+    all_cells <- colnames(obs_ref_mat[, -1])
+    normal_cells <- c(1:colnames(obs_ref_mat[, -1]) %>%
+        str_detect(., normal_prefix) %>%
+        sum(.))
     names(normal_cells) <- colnames(obs_ref_mat) %>%
         grep(normal_prefix,
-             .,
-             value = T)
+            .,
+            value = T
+        )
 
-    aneu_cells <- c(1:colnames(obs_ref_mat[,-1]) %>%
-                    str_detect(., aneu_prefix) %>%
-                    sum(.))
+    aneu_cells <- c(1:colnames(obs_ref_mat[, -1]) %>%
+        str_detect(., aneu_prefix) %>%
+        sum(.))
     names(aneu_cells) <- colnames(obs_ref_mat) %>%
         grep(aneu_prefix,
-             .,
-             value = T)
+            .,
+            value = T
+        )
 
 
-    return(list(obs_ref_mat,
-                norm_factor,
-                normal_cells,
-                aneu_cells))
+    return(list(
+        obs_ref_mat,
+        norm_factor,
+        normal_cells,
+        aneu_cells
+    ))
 }
 
 
@@ -92,43 +100,50 @@ RunConicsmat <- function(obs_ref_mat,
                          gene_pos,
                          normal_cells,
                          aneu_cells,
-                         save_dir){
-
-    cell_prefix <- c(rep('Ref', length(normal_cells)), rep('Observed', length(aneu_cells)))
+                         save_dir) {
+    cell_prefix <- c(rep("Ref", length(normal_cells)), rep("Observed", length(aneu_cells)))
 
     cs_all <- plotAll(obs_ref_mat,
-                      norm_factor,
-                      regions,
-                      gene_pos,
-                      str_glue("{save_dir}/supervised_postProb.pdf"),
-                      normal = normal_cells,
-                      tumor = aneu_cells)
-    
+        norm_factor,
+        regions,
+        gene_pos,
+        str_glue("{save_dir}/supervised_postProb.pdf"),
+        normal = normal_cells,
+        tumor = aneu_cells
+    )
+
     hist <- plotHistogram(cs_all,
-                          obs_ref_mat,
-                          clusters=2,
-                          zscoreThreshold=4,
-                          cell_prefix)
+        obs_ref_mat,
+        clusters = 2,
+        zscoreThreshold = 4,
+        cell_prefix
+    )
 
     bin_mat <- binarizeMatrix(cs_all,
-                              normal = normal_cells,
-                              tumor = tumour_cells,
-                              0.8)
+        normal = normal_cells,
+        tumor = tumour_cells,
+        0.8
+    )
 
     chr_heatmap <- plotChromosomeHeatmap(obs_ref_mat,
-                                         normal = normal_cells,
-                                         plotcells = all_cells,
-                                         gene_pos = gene_pos,
-                                         chr = T,
-                                         windowsize = 101,
-                                         expThresh=0.2,
-                                         thresh = 1)
+        normal = normal_cells,
+        plotcells = all_cells,
+        gene_pos = gene_pos,
+        chr = T,
+        windowsize = 101,
+        expThresh = 0.2,
+        thresh = 1
+    )
 
-    ggsave(str_glue("{save_dir}/all_cells_chr_heatmap.pdf"),
-           chr_heatmap)
+    ggsave(
+        str_glue("{save_dir}/all_cells_chr_heatmap.pdf"),
+        chr_heatmap
+    )
 
-    ggsave(str_glue("{save_dir}/cna_hist.pdf"),
-           hist)
+    ggsave(
+        str_glue("{save_dir}/cna_hist.pdf"),
+        hist
+    )
 
 
     return(bin_mat)
@@ -139,26 +154,32 @@ RunConicsmat <- function(obs_ref_mat,
 ret_list <- ReadData(obs_ref_dir = "../proc/pbmc3k_tall_ref_merged_counts.tsv.gz")
 obs_ref_mat <- ret_list[[1]]
 regions <- ret_list[[2]]
-obs_ref_mat[,1:5]
-obs_ref_mat %>% tail(n = c(5,5))
+obs_ref_mat[, 1:5]
+obs_ref_mat %>% tail(n = c(5, 5))
 obs_ref_mat %>% nrow()
 all_cells %>% length()
 
 
-GetGeneLoc(obs_ref_mat$gene)[1:5,1:5]
-colnames(obs_ref_mat[,-1]) %>% str_detect(., "pbmc") %>% sum(.)
-colnames(obs_ref_mat) %>% grep("tall", ., value = T) %>% length()
+GetGeneLoc(obs_ref_mat$gene)[1:5, 1:5]
+colnames(obs_ref_mat[, -1]) %>%
+    str_detect(., "pbmc") %>%
+    sum(.)
+colnames(obs_ref_mat) %>%
+    grep("tall", ., value = T) %>%
+    length()
 
 
 ProcConicsmatData(obs_ref_mat,
-                  gene_pos,
-                  normal_prefix = "pbmc",
-                  aneu_prefix = "tall")
+    gene_pos,
+    normal_prefix = "pbmc",
+    aneu_prefix = "tall"
+)
 
 RunConicsmat(obs_ref_mat,
-             regions,
-             norm_factor,
-             gene_pos,
-             normal_cells,
-             aneu_cells,
-             save_dir = "../outputs/tall_scnova/conicsmat_pbmc_tall")
+    regions,
+    norm_factor,
+    gene_pos,
+    normal_cells,
+    aneu_cells,
+    save_dir = "../outputs/tall_scnova/conicsmat_pbmc_tall"
+)

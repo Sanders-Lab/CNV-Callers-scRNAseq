@@ -1,9 +1,10 @@
 library(tidyverse)
 library(patchwork)
 
-joint_post <- read.table('../outputs/numbat_pbmc3k_epithelium_tnbc1/joint_post_2.tsv',
-                         header = T,
-                         sep = '\t')
+joint_post <- read.table("../outputs/numbat_pbmc3k_epithelium_tnbc1/joint_post_2.tsv",
+    header = T,
+    sep = "\t"
+)
 joint_post %>% head()
 
 
@@ -44,36 +45,36 @@ neu_count <- 0
 # doing for all the cells
 
 cnv_count_df <- data.frame()
-for (cell_num in 1:length(tnbc_cells)){
+for (cell_num in 1:length(tnbc_cells)) {
+    # resetting the counts
+    amp_count <- 0
+    del_count <- 0
+    loh_count <- 0
+    neu_count <- 0
 
-  # resetting the counts
-  amp_count <- 0
-  del_count <- 0
-  loh_count <- 0
-  neu_count <- 0
+    # getting the curr_cell
+    curr_cell <- joint_post %>% filter(cell == tnbc_cells[cell_num])
 
-  # getting the curr_cell
-  curr_cell <- joint_post %>% filter(cell == tnbc_cells[cell_num])
+    # looping from the 2nd cell
+    for (i in 1:nrow(curr_cell)) {
+        amp_count <- str_count(curr_cell$cnv_state_map, "amp") %>% sum()
 
-  # looping from the 2nd cell
-  for (i in 1:nrow(curr_cell)){
+        del_count <- str_count(curr_cell$cnv_state_map, "del") %>% sum()
 
-    amp_count <- str_count(curr_cell$cnv_state_map, 'amp') %>% sum()
+        loh_count <- str_count(curr_cell$cnv_state_map, "loh") %>% sum()
 
-    del_count <- str_count(curr_cell$cnv_state_map, 'del') %>% sum()
+        neu_count <- str_count(curr_cell$cnv_state_map, "neu") %>% sum()
+    }
 
-    loh_count <- str_count(curr_cell$cnv_state_map, 'loh') %>% sum()
-
-    neu_count <- str_count(curr_cell$cnv_state_map, 'neu') %>% sum()
-  }
-
-  # saving a temp df with the same col format
-  # will use this to rbind to the master df
-  temp_df <- data.frame(amp_count,
-                        del_count,
-                        neu_count,
-                        loh_count)
-  cnv_count_df <- rbind(cnv_count_df, temp_df)
+    # saving a temp df with the same col format
+    # will use this to rbind to the master df
+    temp_df <- data.frame(
+        amp_count,
+        del_count,
+        neu_count,
+        loh_count
+    )
+    cnv_count_df <- rbind(cnv_count_df, temp_df)
 }
 
 # ggplot() +
@@ -133,15 +134,13 @@ df_melt <- melt(cnv_count_df)
 
 # THIS
 ggplot(df_melt, aes(variable[1],
-                    value,
-                    color = variable)) +
-  geom_violin() +
-  geom_point() +
-  scale_colour_manual(values = c('red', 'blue', 'gray', 'green')) +
-  ylab('Segment Counts') +
-  xlab('') +
-  geom_jitter() +
-  facet_grid(~ variable)
-
-
-
+    value,
+    color = variable
+)) +
+    geom_violin() +
+    geom_point() +
+    scale_colour_manual(values = c("red", "blue", "gray", "green")) +
+    ylab("Segment Counts") +
+    xlab("") +
+    geom_jitter() +
+    facet_grid(~variable)
