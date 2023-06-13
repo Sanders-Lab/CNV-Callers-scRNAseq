@@ -7,19 +7,22 @@ library(ggplot2)
 # reading in the segs
 copykat_segs <- fread("../proc/copykat_tnb1_segs_refined.tsv.gz")
 copykat_segs
+nsegs_ck <- nrow(copykat_segs)
 
 
 infercnv_segs <- fread("../proc/infercnv_tnbc1_segs_refined.tsv.gz")
 infercnv_segs
 
 infercnv_segs <- infercnv_segs[cell_name %in% copykat_segs$cell_name]
+infercnv_segs
+nsegs_inf <- nrow(infercnv_segs)
 
 
 numbat_segs <- fread("../proc/numbat_tnbc_cna_segs.tsv.gz")
 numbat_segs <- numbat_segs[cell_name %in% copykat_segs$cell_name]
 numbat_segs <- numbat_segs[cnv_state != ""]
 numbat_segs
-
+nsegs_nb <- nrow(numbat_segs)
 
 
 
@@ -196,45 +199,36 @@ nb_overlaps
 nb_sig_overlaps <- nb_overlaps[SDTrackPercOverlap > 50]
 nb_sig_overlaps
 
-
-nb_overlap_count <- nb_sig_overlaps[cnv_state == "amp",
-                .(count = .N),
-                by = .(cell_name, caller)
-                ][, cnv_call := "amp"] 
-nb_overlap_count
-
-nb_overlap_count <- rbind(nb_overlap_count, 
-                          nb_sig_overlaps[cnv_state == "del",
-                                          .(count = .N),
-                                          by = .(cell_name, caller)
-                                          ][, cnv_call := "del"]) 
-nb_overlap_count
+nb_sig_overlaps[, N := .N, by = cnv_state]
+nb_sig_overlaps[, .SD, by = .(seqnames, start, end)]
+nb_sig_overlaps[, mean_width := mean(width), by = cnv_state]
+nb_sig_overlaps
 
 
-loh_overlaps <- nb_sig_overlaps[cnv_state == "loh",
-                                .(.N, matched_call),
-                                by = .(cell_name, caller)
-                                ][, cnv_call := "loh"]
-setnames(loh_overlaps, "N", "count")
-print(loh_overlaps)
+nb_overlap_stats <- nb_sig_overlaps[cnv_state != "loh", .SD, by = .(cell_name, caller, cnv_state)
+                                    ][, unique(round(.N / (N + log(mean_width)) * 100, 2)), by = .(cnv_state, caller)]
+nb_overlap_stats
+
+cnv_colors <- c('tomato2', 'dodgerblue2', "springgreen3")
+names(cnv_colors) <- c('amp', 'del', "loh")
+cnv_colors
 
 
 # plotting
 pdf("../plots/cnv_callers_stats/cnv_overlap_numbat_count.pdf")
-ggplot(data = nb_overlap_count,
-       mapping = aes(x = cnv_call,
-                     y = count,
-                     colour = cnv_call)) +
-geom_violin() +
-geom_point() +
-geom_jitter() +
-stat_summary(fun = "mean",
-             geom = "crossbar",
-             width = 1,
-             colour = "black") +
-facet_grid(~ caller) +
-scale_colour_manual(values = cnv_colors) +
-ggtitle("Numbat - Count of Overlapping (50% overlap) CNV Segments")
+
+ggplot(data = nb_overlap_stats,
+       mapping = aes(x = caller,
+                     y = V1,
+                     fill = cnv_state,
+                     label = V1)) +
+geom_col(position = "dodge") +
+geom_text(position = position_dodge(width = 0.9), vjust = -0.5) +
+scale_fill_manual(values = cnv_colors) +
+labs(y = "Proportion of Segments (%)",
+     title = "Numbat - Count of Overlapping (> 50% overlap) CNV Segments"
+)
+
 dev.off()
 
 # ggsave(tmp_plot)
@@ -242,21 +236,26 @@ dev.off()
 
 
 # plotting the loh calls
+nb_sig_overlaps[cnv_state == "loh"]
+nb_overlap_stats <- nb_sig_overlaps[cnv_state == "loh", .SD, by = .(cell_name, caller, cnv_state)
+                                    ][, unique(round(.N / (N + log(mean_width)) * 100, 2)), by = .(matched_call, caller)]
+nb_overlap_stats
+
+
 pdf("../plots/cnv_callers_stats/cnv_overlap_loh_count.pdf")
-ggplot(data = loh_overlaps,
-       mapping = aes(x = matched_call,
-                     y = count,
-                     color = matched_call)) +
-geom_violin() +
-geom_point() +
-geom_jitter() +
-stat_summary(fun = "mean",
-             geom = "crossbar",
-             width = 1,
-             colour = "black") +
-facet_grid(~ caller) +
-scale_colour_manual(values = cnv_colors) +
-ggtitle("Numbat - Count of Overlapping (50% overlap) loh Segments")
+
+ggplot(data = nb_overlap_stats,
+       mapping = aes(x = caller,
+                     y = V1,
+                     fill = matched_call,
+                     label = V1)) +
+geom_col(position = "dodge") +
+geom_text(position = position_dodge(width = 0.9), vjust = -0.5) +
+scale_fill_manual(values = cnv_colors) +
+labs(y = "Proportion of Segments (%)",
+     title = "Numbat - Count of Overlapping loh (> 50% overlap) CNV Segments"
+)
+
 dev.off()
 
 ggsave(tmp_plot)
@@ -264,109 +263,106 @@ ggsave(tmp_plot)
 
 # INFERCNV
 inf_overlaps
+inf_overlaps[, width := (end - start)]
 inf_sig_overlaps <- inf_overlaps[SDTrackPercOverlap > 50]
 inf_sig_overlaps
 
-inf_overlap_count <- inf_sig_overlaps[cnv_state == "amp",
-                .(count = .N),
-                by = .(cell_name, caller)
-                ][, cnv_call := "amp"] 
-inf_overlap_count
+inf_sig_overlaps[, N := .N, by = cnv_state]
+inf_sig_overlaps[, mean_width := mean(width), by = cnv_state]
+inf_sig_overlaps
 
-inf_overlap_count <- rbind(inf_overlap_count, 
-                          inf_sig_overlaps[cnv_state == "del",
-                                          .(count = .N),
-                                          by = .(cell_name, caller)
-                                          ][, cnv_call := "del"]) 
-inf_overlap_count
+
+inf_overlap_stats <- inf_sig_overlaps[, .SD, by = .(cell_name, caller, cnv_state)
+                                    ][, unique(round(.N / (N + log(mean_width)) * 100, 2)), by = .(cnv_state, caller)]
+inf_overlap_stats
+
+
 
 
 # plotting infercnv overlaps
 pdf("../plots/cnv_callers_stats/cnv_overlap_infercnv_count.pdf")
-ggplot(data = inf_overlap_count,
-       mapping = aes(x = cnv_call,
-                     y = count,
-                     colour = cnv_call)) +
-geom_violin() +
-geom_point() +
-geom_jitter() +
-stat_summary(fun = "mean",
-             geom = "crossbar",
-             width = 1,
-             colour = "black") +
-facet_grid(~ caller) +
-scale_colour_manual(values = cnv_colors) +
-ggtitle("InferCNV - Count of Overlapping (50% overlap) CNV Segments")
+
+ggplot(data = inf_overlap_stats,
+       mapping = aes(x = caller,
+                     y = V1,
+                     fill = cnv_state,
+                     label = V1)) +
+geom_col(position = "dodge") +
+geom_text(position = position_dodge(width = 0.9), vjust = -0.5) +
+scale_fill_manual(values = cnv_colors) +
+labs(y = "Proportion of Segments (%)",
+     title = "InferCNV - Count of Overlapping loh (> 50% overlap) CNV Segments"
+)
+
 dev.off()
 
 
 # COPYKAT
 ck_overlaps
+ck_overlaps[, width := (end - start)]
 ck_sig_overlaps <- ck_overlaps[SDTrackPercOverlap > 50]
 ck_sig_overlaps
 
-ck_overlap_count <- ck_sig_overlaps[cnv_state == "amp",
-                .(count = .N),
-                by = .(cell_name, caller)
-                ][, cnv_call := "amp"] 
-ck_overlap_count
+ck_sig_overlaps[, N := .N, by = cnv_state]
+ck_sig_overlaps[, mean_width := mean(width), by = cnv_state]
+ck_sig_overlaps
 
-ck_overlap_count <- rbind(ck_overlap_count, 
-                          ck_sig_overlaps[cnv_state == "del",
-                                          .(count = .N),
-                                          by = .(cell_name, caller)
-                                          ][, cnv_call := "del"]) 
-ck_overlap_count
+
+ck_overlap_stats <- ck_sig_overlaps[, .SD, by = .(cell_name, caller, cnv_state)
+                                    ][, unique(round(.N / (N + log(mean_width)) * 100, 2)), by = .(cnv_state, caller)]
+ck_overlap_stats
 
 
 # plotting infercnv overlaps
 pdf("../plots/cnv_callers_stats/cnv_overlap_copykat_count.pdf")
-ggplot(data = ck_overlap_count,
-       mapping = aes(x = cnv_call,
-                     y = count,
-                     colour = cnv_call)) +
-geom_violin() +
-geom_point() +
-geom_jitter() +
-stat_summary(fun = "mean",
-             geom = "crossbar",
-             width = 1,
-             colour = "black") +
-facet_grid(~ caller) +
-scale_colour_manual(values = cnv_colors) +
-ggtitle("Copykat - Count of Overlapping (50% overlap) CNV Segments")
+
+ggplot(data = ck_overlap_stats,
+       mapping = aes(x = caller,
+                     y = V1,
+                     fill = cnv_state,
+                     label = V1)) +
+geom_col(position = "dodge") +
+geom_text(position = position_dodge(width = 0.9), vjust = -0.5) +
+scale_fill_manual(values = cnv_colors) +
+labs(y = "Proportion of Segments (%)",
+     title = "Copykat - Count of Overlapping loh (> 50% overlap) CNV Segments"
+)
+
 dev.off()
 
 
 # proportion of calls dropped
 prop_drop <- data.table(caller = character(7),
                         prop = numeric(7))
-prop_drop[1, prop := ((nrow(ck_overlaps[cnv_state == "amp"]) - nrow(ck_sig_overlaps[cnv_state == "amp"]))
-                       / nrow(ck_overlaps[cnv_state == "amp"]))
+
+
+
+prop_drop[1, prop := round((nrow(ck_overlaps[cnv_state == "amp"]) - nrow(ck_sig_overlaps[cnv_state == "amp"]))
+                       / nrow(ck_overlaps[cnv_state == "amp"]) * 100, 2)
           ][1, caller := "copykat"
           ][1, cnv_call := "amp"]
-prop_drop[2, prop := ((nrow(ck_overlaps[cnv_state == "del"]) - nrow(ck_sig_overlaps[cnv_state == "del"]))
-                       / nrow(ck_overlaps[cnv_state == "del"]))
+prop_drop[2, prop := round((nrow(ck_overlaps[cnv_state == "del"]) - nrow(ck_sig_overlaps[cnv_state == "del"]))
+                       / nrow(ck_overlaps[cnv_state == "del"]) * 100, 2)
           ][2, caller := "copykat"
           ][2, cnv_call := "del"]
-prop_drop[3, prop := ((nrow(inf_overlaps[cnv_state == "amp"]) - nrow(inf_sig_overlaps[cnv_state == "amp"]))
-                       / nrow(inf_overlaps[cnv_state == "amp"]))
+prop_drop[3, prop := round((nrow(inf_overlaps[cnv_state == "amp"]) - nrow(inf_sig_overlaps[cnv_state == "amp"]))
+                       / nrow(inf_overlaps[cnv_state == "amp"]) * 100, 2)
           ][3, caller := "infercnv"
           ][3, cnv_call := "amp"]
-prop_drop[4, prop := ((nrow(ck_overlaps[cnv_state == "del"]) - nrow(ck_sig_overlaps[cnv_state == "del"]))
-                       / nrow(ck_overlaps[cnv_state == "del"]))
+prop_drop[4, prop := round((nrow(ck_overlaps[cnv_state == "del"]) - nrow(ck_sig_overlaps[cnv_state == "del"]))
+                       / nrow(ck_overlaps[cnv_state == "del"]) * 100, 2)
           ][4, caller := "infercnv"
           ][4, cnv_call := "del"]
-prop_drop[5, prop := ((nrow(nb_overlaps[cnv_state == "amp"]) - nrow(nb_sig_overlaps[cnv_state == "amp"]))
-                       / nrow(ck_overlaps[cnv_state == "amp"]))
+prop_drop[5, prop := round((nrow(nb_overlaps[cnv_state == "amp"]) - nrow(nb_sig_overlaps[cnv_state == "amp"]))
+                       / nrow(ck_overlaps[cnv_state == "amp"]) * 100, 2)
           ][5, caller := "numbat"
           ][5, cnv_call := "amp"]
-prop_drop[6, prop := ((nrow(nb_overlaps[cnv_state == "del"]) - nrow(nb_sig_overlaps[cnv_state == "del"]))
-                       / nrow(nb_overlaps[cnv_state == "del"]))
+prop_drop[6, prop := round((nrow(nb_overlaps[cnv_state == "del"]) - nrow(nb_sig_overlaps[cnv_state == "del"]))
+                       / nrow(nb_overlaps[cnv_state == "del"]) * 100, 2)
           ][6, caller := "numbat"
           ][6, cnv_call := "del"]
-prop_drop[7, prop := ((nrow(nb_overlaps[cnv_state == "del"]) - nrow(nb_sig_overlaps[cnv_state == "del"]))
-                       / nrow(nb_overlaps[cnv_state == "del"]))
+prop_drop[7, prop := round((nrow(nb_overlaps[cnv_state == "del"]) - nrow(nb_sig_overlaps[cnv_state == "del"]))
+                       / nrow(nb_overlaps[cnv_state == "del"]) * 100, 2)
           ][7, caller := "numbat"
           ][7, cnv_call := "del"]
 
@@ -376,14 +372,18 @@ prop_drop
 
 # plotting prop_drop
 pdf("../plots/cnv_callers_stats/cnv_prop_drop_calls.pdf")
+
 ggplot(data = prop_drop,
-       mapping = aes(x = cnv_call,
+       mapping = aes(x = caller,
                      y = prop,
-                     fill = cnv_call)) + 
-geom_col() +
-facet_grid(~ caller) +
+                     fill = cnv_call,
+                     label = prop)) + 
+geom_col(position = "dodge") +
+geom_text(position = position_dodge(width = 0.9), vjust = -0.5) +
 scale_fill_manual(values = cnv_colors) +
-ggtitle("Proportions of calls retained after 50% overlap")
+labs(y = "Proportion of calls (%)",
+     title = "Proportions of calls retained after (> 50%) overlap"
+)
 
 dev.off()
 

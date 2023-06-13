@@ -30,7 +30,6 @@ names(ideo_width) <- ideo_dt[, chrom]
 ideo_width
 
 
-
 bin_size <- 1e6
 bin_genome <- tileGenome(ideo_width,
     tilewidth = bin_size,
@@ -665,12 +664,6 @@ comp_dt <- rbind(
 
 comp_dt <- comp_dt[perc_overlap > 50]
 
-all_cells <- unique(comp_dt$cell_name)
-all_bins <- unique(comp_dt$bin_id)
-length(all_cells)
-length(all_bins)
-all_bins <- sort(all_bins)
-all_bins
 
 
 cellname <- comp_dt[1, cell_name]
@@ -685,12 +678,7 @@ comp_dt[, .N, by = .(cell_name, bin_id, cnv_state)][N == 3]
 # grouping by cells, binid and cnv_state
 caller_coverage <- comp_dt[, .SD, by = .(cell_name, bin_id, cnv_state)]
 caller_coverage
-caller_coverage[, hits := length(unique(caller)), by = .(cell_name, bin_id, cnv_state)]
 
-caller_coverage[hits == 3, .N]
-caller_coverage[hits == 2, .N]
-caller_coverage[hits == 1, .N]
-caller_coverage[cell_name == "tnbc1_AAACGGGTCCAGAGGA" & bin_id == 16]
 
 
 caller_coverage[hits == 3, length(unique(cell_name))]
@@ -699,14 +687,12 @@ length(a)
 a
 
 
-# calc the prop of bins covered in each class of hits.
-total_bins <- bin_gen_dt[, max(bin_id)]
-total_bins
 
 
 called_bins <- caller_coverage[, length(unique(bin_id))]
 caller_coverage[, hits := length(unique(caller)), by = .(bin_id, cell_name, cnv_state)]
 caller_coverage[, .SD, by = .(hits, cell_name, cnv_state)]
+caller_coverage[hits == 3]
 caller_coverage
 
 
@@ -725,12 +711,12 @@ ggplot(data = n_hits,
        aes(
            x = hits,
            y = V1,
-           fill = cnv_state
+           fill = cnv_state,
+           label = V1
        ) 
        ) +
-        geom_col() +
-        geom_text(aes(label = V1),
-                  position = position_stack(vjust = 0.5)) +
+                 geom_col(position = "dodge") +
+                 geom_text(position = position_dodge(width = 0.9), vjust = -0.5) +
         scale_fill_manual(values = cnv_colors) +
         xlab("Number of callers") +
         ylab("Proportion of called bins (%)") +
@@ -755,12 +741,13 @@ ggplot(data = n_cells,
        aes(
            x = hits,
            y = V1,
-           fill = cnv_state
+           fill = cnv_state,
+           label = V1
        ) 
        ) +
-                 geom_col() +
-                 geom_text(aes(label = V1),
-                           position = position_stack(vjust = 0.5)) +
+                 geom_col(position = "dodge") +
+                 geom_text(position = position_dodge(width = 0.9), vjust = -0.5) +
+                 scale_fill_manual(values = cnv_colors) +
                  xlab("Number of callers with the same call") +
                  ylab("Proportion of cells (%)") +
                  ggtitle("Extent of agreement of cnv calls between callers per cell per bin")
@@ -770,17 +757,17 @@ dev.off()
 
 
 # prop of bins in 2 caller coverage
+# getting the pairs of callers
 caller_pairs <- caller_coverage[hits == 2,
                                 paste(caller, sep = "-", collapse = "-"),
-                                by = .(cell_name, bin_id, cnv_state)
-                                ]
+                                by = .(cell_name, bin_id, cnv_state)]
 setnames(caller_pairs,
          "V1",
          "caller_pairs"
 )
 caller_pairs
-caller_pairs_stats <- caller_pairs[, 
-                                   round(length(unique(bin_id)) / total_bins * 100, 2), 
+caller_pairs[, unique(caller_pairs)]
+caller_pairs_stats <- caller_pairs[,round(length(unique(bin_id)) / called_bins * 100, 2), 
                                    by = .(cnv_state, caller_pairs)]
 setnames(caller_pairs_stats,
          "V1",
@@ -801,13 +788,13 @@ pdf("../plots/cnv_callers_stats/agreement_caller_pairs.pdf")
 ggplot(data = caller_pairs_stats,
        aes(x = caller_pairs,
            y = prop_bins,
-           fill = cnv_state
+           fill = cnv_state,
+           label = prop_bins
        )
        )+
-         geom_col() +
+                 geom_col(position = "dodge") +
+                 geom_text(position = position_dodge(width = 0.9), vjust = -0.5) +
          scale_fill_manual(values = cnv_colors) +
-         geom_text(aes(label = prop_bins),
-                   position = position_stack(vjust = 0.5)) +
          xlab("Caller pairs") +
          ylab("Proportion of bins (%)") +
          ggtitle("Caller pairs in agreement per cell per bin per cnv call")
@@ -816,7 +803,8 @@ dev.off()
 
 
 
-bin_gen_dt
+bin_gen_dt <- as.data.table(bin_genome)
+all_bins <- bin_gen_dt$bin_id
 caller_coverage
 
 caller_coverage <- merge.data.table(caller_coverage, 
@@ -877,17 +865,17 @@ pdf("../plots/cnv_callers_stats/calls_across_chr.pdf",
 ggplot(data = calls_chr,
        aes(x = seqnames,
            y = prop_bins,
-           fill = cnv_state
+           fill = cnv_state,
+           label = prop_bins,
+           width = 0.6
        )
        ) +
-    geom_col() +
+                 geom_col(position = "dodge") +
+                 geom_text(position = position_dodge(width = 1), vjust = -0.5, size = 5) +
     geom_line(aes(x = seqnames,
                   y = mean_chr_coverage,
                   group = 1),
               linetype = "dashed") +
-    geom_text(aes(label = prop_bins),
-              position = position_stack(vjust = 0.5),
-              size = 8) +
     facet_grid(rows = vars(caller)) +
     scale_fill_manual(values = cnv_colors) +
     labs(fill = "CNV State",
@@ -903,8 +891,7 @@ ggplot(data = calls_chr,
           legend.text = element_text(size = 22),
           legend.title = element_text(size = 22,
                                       face = "bold")
-    ) +
-    ggtitle("Proportion of chr bins covered ")
+    ) 
 
 dev.off()
 
@@ -960,13 +947,163 @@ setnames(neu_calls,
          "neu_bins"
 )
 neu_calls
-neu_calls[, hits := length(unique(caller)), by = .(neu_bins)]
+neu_calls[, .SD, by = .(neu_bins, cell_name)]
+neu_calls[, hits := length(unique(caller)), by = .(neu_bins, cell_name)]
 neu_calls[, unique(hits)]
+neu_calls
+neu_calls[neu_bins == 249]
+neu_calls[neu_bins == 1]
+neu_calls[neu_bins == 249 &
+          cell_name == neu_calls[1, cell_name]]
 
 
 total_bins <- max(bin_gen_dt$bin_id)
 total_bins
 # prop of bins called neu by number of callers
-neu_calls[, round(length(unique(neu_bins)) / total_bins * 100, 2)]
+neu_calls[, length(unique())]
+neu_calls[, unique(neu_bins)]
+neu_calls[, .SD, by = .(hits)]
+neu_overlap <- neu_calls[, round(length(unique(neu_bins)) / total_bins * 100, 2), by = .(hits)]
 
+
+pdf("../plots/cnv_callers_stats/neutral_calls_overlap_callers.pdf")
+
+ggplot(data = neu_overlap,
+       aes(x = hits,
+           y = V1,
+           label = V1
+       )
+) +
+    geom_col() +
+    labs(x = "Number of callers",
+         y = "Proportion of all bins (%)",
+         title = "Extent of overlap of neutral called bins per cell"
+    ) +
+    geom_text(vjust = -0.5)
+
+dev.off()
+
+
+# for two caller overlap of neu
+neu_calls[hits == 2, .SD, by = .(cell_name, neu_bins)][order(caller)]
+neu_calls[neu_bins == 79 &
+          like(cell_name, "AGAGGA")]
+
+
+neu_caller_pairs <- neu_calls[order(caller)
+                              ][hits == 2, 
+                              paste(caller, sep = "-", collapse = "-"),
+                              by = .(cell_name, neu_bins)]
+neu_caller_pairs[, unique(V1)]
+neu_caller_pairs
+setnames(neu_caller_pairs,
+         "V1",
+         "caller_pairs"
+)
+
+
+neu_caller_pairs
+neu_caller_stats <- neu_caller_pairs[, round(length(unique(neu_bins)) / total_bins * 100, 2), by = caller_pairs]
+neu_caller_stats
+
+
+
+pdf("../plots/cnv_callers_stats/neutral_calls_caller_pairs.pdf")
+
+ggplot(data = neu_caller_stats,
+       aes(x = caller_pairs,
+           y = V1,
+           label = V1
+       )
+) +
+    geom_col() +
+    geom_text(vjust = -0.5) +
+    labs(x = "Caller Pairs",
+         y = "Proportion of all bins (%)",
+         title = "Caller pairs in agreement: Neutral Bins"
+    )
+
+dev.off()
+
+
+loh_calls <- caller_coverage[cnv_state == "loh"]
+loh_calls
+
+
+caller_coverage[cell_name == "tnbc1_CCCAATCTCCGTACAA" &
+                bin_id == 1 &
+                cnv_state != "loh"]
+
+
+loh_comp <- data.table()
+for(entry in 1:nrow(loh_calls)) {
+
+    curr_entry <- caller_coverage[cell_name == loh_calls[entry, cell_name] &
+                                  bin_id == loh_calls[entry, bin_id] &
+                                  cnv_state != "loh"]
+    if(nrow(curr_entry) > 0) {
+        loh_comp <- rbind(loh_comp,
+                          curr_entry
+        )
+    }
+}
+entry
+loh_comp
+
+loh_bins <- loh_calls[, length(unique(bin_id))]
+
+
+loh_calls[bin_id == 594]
+loh_comp[, nrow(.SD) > 1, by = .(bin_id)]
+loh_comp[bin_id == 594]
+
+
+copy <- caller_coverage
+caller_coverage
+
+loh_cells <- loh_calls[, .SD, by = .(bin_id, cell_name)][, .(bin_id, cell_name)]
+loh_cells[, loh_call := 1]
+loh_cells
+
+
+copy <- merge(copy,
+              loh_cells,
+              by = c("bin_id", "cell_name")
+)
+copy[cnv_state != "loh", .SD, by = .(bin_id, cell_name, caller)]
+copy[cnv_state != "loh", hits := length(unique(caller)), by = .(bin_id, cell_name, cnv_state)]
+
+
+copy[hits == 1 &
+     caller == "InferCNV"]
+
+
+ # calc bin prop of loh in other calls
+loh_miscalls_stats <- copy[cnv_state != "loh", round(length(unique(bin_id)) / loh_bins * 100, 2), by = .(hits, cnv_state, caller)]
+
+loh_miscalls_stats[hits == 2, caller := "Copykat-InferCNV"]
+loh_miscalls_stats <- unique(loh_miscalls_stats)
+loh_miscalls_stats
+
+
+
+pdf("../plots/cnv_callers_stats/loh_miscalled_bins.pdf")
+
+ggplot(data = loh_miscalls_stats,
+       aes(
+           x = caller,
+           y = V1,
+           label = V1,
+           fill = cnv_state
+       )
+       ) +
+                 geom_col(position = "dodge") +
+                 geom_text(position = position_dodge(width = 0.9), vjust = -0.5) +
+              labs(x = "Caller",
+                   y = "Proportion of loh called bins (%)",
+                   title = "Proportion of bins with a cnv call for LOH calls"
+              ) +
+              scale_fill_manual(values = cnv_colors)
+
+dev.off()
 
