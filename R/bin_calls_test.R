@@ -24,6 +24,7 @@ numbat_segs <- numbat_segs[cnv_state != ""]
 numbat_segs
 
 
+# REQUIRED FOR BINNING
 ideo_dt <- fread("../../digital_karyotype/proc/ideogram_scaffold.tsv")
 ideo_width <- ideo_dt[, width]
 names(ideo_width) <- ideo_dt[, chrom]
@@ -38,6 +39,7 @@ bin_genome <- tileGenome(ideo_width,
 length(bin_genome)
 bin_genome$bin_id <- 1:length(bin_genome)
 bin_genome
+bin_gen_dt <- as.data.table(bin_genome)
 
 
 
@@ -306,15 +308,15 @@ PercentOverlap <- function(calls_dt) {
         # for 2nd event right shifted
         if (calls_dt[entry, start] -
             bin_gen_dt[bin_id == curr_bin, start] > 0) {
-            calls_dt[entry, perc_overlap := ((calls_dt[entry, start] -
-                bin_gen_dt[bin_id == curr_bin, start]) / 1e6 * 100)]
+            calls_dt[entry, perc_overlap := ((bin_gen_dt[bin_id == curr_bin, end]-
+                calls_dt[entry, start]) / 1e6 * 100)]
         }
 
         # for 2nd event left shifted
         if (calls_dt[entry, start] -
             bin_gen_dt[bin_id == curr_bin, start] < 0) {
-            calls_dt[entry, perc_overlap := ((bin_gen_dt[bin_id == curr_bin, end] -
-                calls_dt[entry, end]) / 1e6 * 100)]
+            calls_dt[entry, perc_overlap := ((calls_dt[entry, end] -
+                bin_gen_dt[bin_id == curr_bin, start]) / 1e6 * 100)]
         }
     }
 
@@ -329,6 +331,9 @@ inf_bins[cell_name == cellname]
 ck_bins[cell_name == cellname]
 check <- PercentOverlap(nb_bins[cell_name == cellname])
 check
+all_cells <-caller_coverage[, unique(cell_name)] 
+all_cells
+caller_coverage
 
 
 n_cores <- 63
@@ -689,18 +694,31 @@ a
 
 
 
-called_bins <- caller_coverage[, length(unique(bin_id))]
-caller_coverage[, hits := length(unique(caller)), by = .(bin_id, cell_name, cnv_state)]
 caller_coverage[, .SD, by = .(hits, cell_name, cnv_state)]
 caller_coverage[hits == 3]
 caller_coverage
 
 
 
-caller_coverage[, length(unique(bin_id)), by = .(hits,  cnv_state)]
-caller_coverage[, round(length(unique(bin_id)) / called_bins * 100, 2), by = .(hits, cell_name, cnv_state)]
-n_hits <- caller_coverage[, round(length(unique(bin_id)) / called_bins * 100, 2), by = .(hits, cnv_state)]
+# calc hits
+called_bins <- caller_coverage[, length(unique(bin_id))]
+caller_coverage[, hits := length(unique(caller)), by = .(bin_id, cell_name, cnv_state)]
+# caller_coverage[, length(unique(bin_id)), by = .(hits,  cnv_state)]
+# caller_coverage[, round(length(unique(bin_id)) / called_bins * 100, 2), by = .(hits, cell_name, cnv_state)]
+caller_coverage[hits == 1, caller_pairs := caller]
+caller_coverage[hits == 3, caller_pairs := "Numbat-Copykat-InferCNV"]
+caller_coverage[hits == 2]
+
+n_hits <- caller_coverage[, round(length(unique(bin_id)) / called_bins * 100, 2), by = .(hits, cnv_state, caller_pairs)]
 n_hits
+
+
+n_hits[hits == 1, match := "1 Caller (Unique)"]
+n_hits[hits == 2, match := "2 Caller Agreement"]
+n_hits[hits == 3, match := "3 Caller Agreement"]
+n_hits
+
+
 
 
 # tmp_plot <- "../plots/tmp/tmp_plot.pdf"
@@ -709,18 +727,22 @@ pdf("../plots/cnv_callers_stats/agreement_bin_prop_between_callers.pdf")
 
 ggplot(data = n_hits,
        aes(
-           x = hits,
+           x = caller_pairs,
            y = V1,
            fill = cnv_state,
-           label = V1
+           label = V1,
+           width = 0.9
        ) 
        ) +
                  geom_col(position = "dodge") +
-                 geom_text(position = position_dodge(width = 0.9), vjust = -0.5) +
+                 geom_text(position = position_dodge(width = 0.95), vjust = -0.5, size = 2.5) +
+                 facet_wrap(~ match, scales = "free") +
         scale_fill_manual(values = cnv_colors) +
-        xlab("Number of callers") +
+        xlab("Callers") +
         ylab("Proportion of called bins (%)") +
-        ggtitle("Extent of agreement of cnv calls between callers per cell per bin")
+        ggtitle("Extent of agreement of cnv calls between callers per cell per bin") +
+        theme(axis.text.x = element_text(angle = 45,
+                                         vjust = 0.5))
 
 dev.off()
 
@@ -758,6 +780,9 @@ dev.off()
 
 # prop of bins in 2 caller coverage
 # getting the pairs of callers
+caller_coverage[hits == 2,
+                caller_pairs := paste(caller, sep = "-", collapse = "-"),
+                by = .(cell_name, bin_id, cnv_state)]
 caller_pairs <- caller_coverage[hits == 2,
                                 paste(caller, sep = "-", collapse = "-"),
                                 by = .(cell_name, bin_id, cnv_state)]
@@ -963,23 +988,42 @@ total_bins
 neu_calls[, length(unique())]
 neu_calls[, unique(neu_bins)]
 neu_calls[, .SD, by = .(hits)]
-neu_overlap <- neu_calls[, round(length(unique(neu_bins)) / total_bins * 100, 2), by = .(hits)]
+
+
+neu_calls <- neu_calls[order(caller)]
+neu_calls[hits == 2, 
+          caller_pairs := paste(caller, sep = "-", collapse = "-"),
+          by = .(cell_name, neu_bins)]
+neu_calls[hits == 1, caller_pairs := caller]
+neu_calls[hits == 3, caller_pairs := "Numbat-Copykat-InferCNV"]
+neu_calls[hits == 2]
+neu_calls[hits == 1]
+
+neu_overlap <- neu_calls[, round(length(unique(neu_bins)) / total_bins * 100, 2), by = .(hits, caller_pairs)]
+neu_overlap
+
+neu_overlap[hits == 1, match := "1 Caller (Unique)"]
+neu_overlap[hits == 2, match := "2 Caller Agreement"]
+neu_overlap[hits == 3, match := "3 Caller Agreement"]
+
 
 
 pdf("../plots/cnv_callers_stats/neutral_calls_overlap_callers.pdf")
 
 ggplot(data = neu_overlap,
-       aes(x = hits,
+       aes(x = caller_pairs,
            y = V1,
            label = V1
        )
 ) +
     geom_col() +
+    facet_grid(~ match, scales = "free") +
     labs(x = "Number of callers",
          y = "Proportion of all bins (%)",
          title = "Extent of overlap of neutral called bins per cell"
     ) +
-    geom_text(vjust = -0.5)
+    geom_text(vjust = -0.5) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 0.5))
 
 dev.off()
 
@@ -990,10 +1034,14 @@ neu_calls[neu_bins == 79 &
           like(cell_name, "AGAGGA")]
 
 
-neu_caller_pairs <- neu_calls[order(caller)
-                              ][hits == 2, 
-                              paste(caller, sep = "-", collapse = "-"),
-                              by = .(cell_name, neu_bins)]
+neu_calls <- neu_calls[order(caller)]
+neu_calls[hits == 2, 
+          caller_pairs := paste(caller, sep = "-", collapse = "-"),
+          by = .(cell_name, neu_bins)]
+
+
+
+
 neu_caller_pairs[, unique(V1)]
 neu_caller_pairs
 setnames(neu_caller_pairs,
