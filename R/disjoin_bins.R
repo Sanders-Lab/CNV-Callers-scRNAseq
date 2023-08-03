@@ -89,7 +89,7 @@ fwrite(nb_calls,
        sep = "\t"
 )
 
-#####################
+################################################################################
 
 
 
@@ -98,6 +98,11 @@ ck_calls <- fread("../proc/copykat_geneLevel_230331.tsv.gz")
 inf_calls <- fread("../proc/infercnv_tnbc1_gene_calls.tsv.gz")
 nb_calls <- fread("../proc/numbat_tnbc_cna_segs.tsv.gz")
 
+
+# removing n_genes col
+nb_calls[, n_genes := NULL]
+ck_calls[, idx := NULL]
+inf_calls[, idx := NULL]
 
 # ck_calls
 # inf_calls
@@ -134,74 +139,99 @@ nb_gro <- makeGRangesFromDataFrame(nb_calls,
                                    keep.extra.columns = T
 )
 
+nb_dt <- as.data.table(nb_gro)
+ck_dt <- as.data.table(ck_gro)
+inf_dt <- as.data.table(inf_gro)
+
+
+nb_dt
+
+
+# union of the three ranges
+union_ranges <- c(ck_gro, inf_gro)
+union_ranges <- GenomicRanges::union(ck_gro, inf_gro)
+GenomicRanges::merge(ck_gro, 
+                     inf_gro
+)
+
+
+union_ranges <- disjoin(union_ranges)
+union_ranges$bin_id <- 1:length(union_ranges)
+union_dt <- as.data.table(union_ranges)
+union_dt
+union_ranges
+
 
 # ck_gro
 # inf_gro
 
 
-ck_dis <- disjoin(ck_gro)
-inf_dis <- disjoin(inf_gro)
-nb_dis <- disjoin(nb_gro)
-
-# ck_dis
-# inf_dis
-nb_dis
-
-
-union_ranges <- union(ck_dis, inf_dis, nb_dis, ignore.strand = T)
-union_ranges$bin_id <- 1:length(union_ranges)
-union_ranges
-union_dt <- as.data.table(union_ranges)
-union_dt
-union_dt[bin_id == 1342]
-
-
-
-hits <- findOverlaps(union_ranges, nb_gro)
-nb_seg <- cbind(nb_calls[subjectHits(hits)],
-      union_dt[queryHits(hits), "bin_id"])
-nb_seg[, caller := "numbat"]
-nb_seg[, n_genes := NULL]
-nb_seg
-
-
-hits <- findOverlaps(union_ranges, ck_gro)
-ck_seg <- cbind(ck_calls[subjectHits(hits)],
-      union_dt[queryHits(hits), "bin_id"])
-ck_seg[, caller := "copykat"]
-ck_seg[, idx := NULL]
-ck_seg
+# ck_dis <- disjoin(ck_gro)
+# inf_dis <- disjoin(inf_gro)
+# nb_dis <- disjoin(nb_gro)
+# 
+# # ck_dis
+# # inf_dis
+# nb_dis
+# 
+# 
+# union_ranges <- union(ck_dis, inf_dis, nb_dis, ignore.strand = T)
+# union_ranges$bin_id <- 1:length(union_ranges)
+# union_ranges
+# union_dt <- as.data.table(union_ranges)
+# union_dt
+# union_dt[bin_id == 1342]
 
 
 
-hits <- findOverlaps(union_ranges, inf_gro)
-inf_seg <- cbind(inf_calls[subjectHits(hits)],
-      union_dt[queryHits(hits), "bin_id"])
-inf_seg[, caller := "infercnv"]
-inf_seg[, idx := NULL]
-inf_seg
+# function to get the overlaps
+Get_Overlaps <- function(union_ranges,
+                         call_gro, 
+                         caller) {
+
+    .union_dt <- as.data.table(union_ranges)
+    .call_dt <- as.data.table(call_gro)
+
+    hits <- findOverlaps(call_gro, union_ranges)
+    call_seg <- cbind(.call_dt[queryHits(hits)],
+                    .union_dt[subjectHits(hits), "bin_id"])
+    call_seg <- as.data.table(call_seg)
+    call_seg[, caller := caller]
 
 
+    return(call_seg)
+}
+
+hits <- findOverlaps(ck_gro, union_ranges)
+hits
+cbind(ck_dt[queryHits(hits)],
+      union_dt[subjectHits(hits), "bin_id"])[bin_id == 30]
+                  by = c("seqnames", "start", "end"))
+subsetByOverlaps(ck_gro, union_ranges)
+
+
+
+nb_seg <- Get_Overlaps(union_ranges, nb_gro, "numbat")
+inf_seg <- Get_Overlaps(union_ranges, inf_gro, "infercnv")
+ck_seg <- Get_Overlaps(union_ranges, ck_gro, "copykat")
+
+
+
+comp <- c()
 comp <- rbind(nb_seg,
               ck_seg,
               inf_seg
 )
-comp <- unique(comp)
-
+comp
 
 
 comp_dt <- comp[, .(cell_name,
                     cnv_state,
                     bin_id,
                     caller)]
-comp_dt <- unique(comp_dt)
-comp_dt
-comp_dt[cell_name == "tnbc1_AAACCTGCACCTTGTC" &
-          bin_id == 2299]
+comp_dt 
 
 
-str(PercentOverlap)
-PercentOverlap(comp, comp_dt, )
 
 
 all_bins <- union_dt[, bin_id]
@@ -219,19 +249,7 @@ all_bins <- union_dt[, bin_id]
 #          c("cnv_state.x", "cnv_state.y", "cnv_state"),
 #          c("infercnv", "copykat", "numbat")
 # )
-comp[duplicated(comp)]
-unique(comp)
 
-comp[cell_name == "tnbc1_AAACCTGCACCTTGTC" &
-          bin_id == 2299]
-
-comp[bin_id == 1]
-
-dup_calls_bin <- comp[, length(unique(cnv_state)), by = .(cell_name, bin_id, caller)]
-dup_calls_bin[V1 != 1]
-
-comp[cell_name == "tnbc1_AAACGGGTCCAGAGGA" &
-     bin_id == 1342]
 
 # Adding neu tag
 comp_dt[cnv_state == "", cnv_state := "neu"]
@@ -246,10 +264,55 @@ comp_wide <- dcast(comp_dt,
       fun = length
 #       value.var = "cnv_state"
 )
+comp_wide
+
 str(comp_wide)
 comp_wide[, unique(copykat)]
 comp_wide[, unique(infercnv)]
 comp_wide[, unique(numbat)]
+
+
+# getting more than 1
+dups_dt <- comp_wide[copykat > 1, .(cell_name, bin_id)]
+dups_dt
+
+curr_caller <- "infercnv"
+test_dt <- c()
+for(nr in 1:nrow(dups_dt)) {
+
+    if(comp[cell_name == dups_dt[nr, cell_name] &
+       bin_id == dups_dt[nr, bin_id] &
+       caller == curr_caller][, length(unique(cnv_state))] > 1) {
+
+#         tmp_dt <- data.table(cell_name = dups_dt[nr, cell_name],
+#                              bin_id = dups_dt[nr, bin_id],
+#                              cnv_state = T
+#         )
+        print(paste0("cell_name : ",
+                     dups_dt[nr, cell_name],
+                     "\nbin_id : ",
+                     dups_dt[nr, bin_id]))
+    } else {
+
+#         tmp_dt <- data.table(cell_name = dups_dt[nr, cell_name],
+#                              bin_id = dups_dt[nr, bin_id],
+#                              cnv_state = F
+#         )
+    }
+
+#     test_dt <- rbind(test_dt, tmp_dt)
+}
+test_dt[cnv_state == T]
+
+
+
+comp[cell_name == "tnbc1_AAACCTGCACCTTGTC" &
+     bin_id == 83 &
+     caller == "infercnv"]
+
+
+comp_wide[copykat == 5 &
+          cell_name == "tnbc1_AAACCTGCACCTTGTC"]
 
 
 
@@ -267,6 +330,25 @@ str(comp_wide_df)
 typeof(comp_wide_df)
 
 
+comp[cell_name == "tnbc1_AAACCTGCACCTTGTC" &
+          bin_id == 29 &
+          caller == "copykat"]
+
+comp[cell_name == "tnbc1_AAACCTGCACCTTGTC" &
+          bin_id == 1316 &
+          caller == "copykat"]
+
+comp[cell_name == "tnbc1_AAACCTGCACCTTGTC" &
+     start == 2391775 &
+     seqnames == "chr1" &
+     caller == "infercnv"]
+
+union_dt[bin_id == 29]
+union_dt[bin_id == 30]
+union_dt[bin_id == 1316]
+
+comp[cell_name == "tnbc1_AAACGGGTCCAGAGGA" &
+     bin_id == 1342]
 
 
 ################################################################################
