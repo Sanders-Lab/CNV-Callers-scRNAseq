@@ -3,7 +3,7 @@ library(GenomicRanges)
 library(UpSetR)
 library(ggplot2)
 library(ComplexUpset)
-source("../../breakpoint_analysis/R/methods.R")
+source("../../digital_karyotype/R/utils.R", chdir = T)
 
 
 #########
@@ -148,18 +148,49 @@ nb_dt
 
 
 # union of the three ranges
-union_ranges <- c(ck_gro, inf_gro)
+union_ranges <- makeGRangesFromDataFrame(inf_calls,
+                                         start.field = "start_loc",
+                                         end.field = "end_loc",
+                                         seqnames.field = "chr_name"
+)
+union_ranges <- inf_gro
+union_ranges <- c(ck_gro, inf_gro, nb_gro)
 union_ranges <- GenomicRanges::union(ck_gro, inf_gro)
 GenomicRanges::merge(ck_gro, 
                      inf_gro
 )
+isDisjoint(union_ranges)
+union_ranges  <- disjoin(union_ranges)
+union_ranges$sv_state  <- "bg"
+union_ranges$cell_name  <- "inf"
+union_ranges
+union_dt <- as.data.table(union_ranges)
+setnames(union_dt,
+         c("seqnames", "start", "end"),
+         c("chrom", "start_loc", "end_loc")
+)
+union_dt
 
 
-union_ranges <- disjoin(union_ranges)
+# visualising the union ranges on digKar
+str(Plot_Digital_Karyotype)
+Plot_Digital_Karyotype(cell_sv_dt = union_dt,
+                       plot_both_haplotypes = F,
+                       save_digital_karyotype = T,
+                       plot_dir = "union_ranges"
+
+)
+
+
+
+
+
+
 union_ranges$bin_id <- 1:length(union_ranges)
 union_dt <- as.data.table(union_ranges)
 union_dt
 union_ranges
+isDisjoint(union_ranges)
 
 
 # ck_gro
@@ -202,12 +233,12 @@ Get_Overlaps <- function(union_ranges,
     return(call_seg)
 }
 
-hits <- findOverlaps(ck_gro, union_ranges)
-hits
-cbind(ck_dt[queryHits(hits)],
-      union_dt[subjectHits(hits), "bin_id"])[bin_id == 30]
-                  by = c("seqnames", "start", "end"))
-subsetByOverlaps(ck_gro, union_ranges)
+# hits <- findOverlaps(ck_gro, union_ranges)
+# hits
+# cbind(ck_dt[queryHits(hits)],
+#       union_dt[subjectHits(hits), "bin_id"])[bin_id == 30]
+#                   by = c("seqnames", "start", "end"))
+# subsetByOverlaps(ck_gro, union_ranges)
 
 
 
@@ -222,6 +253,7 @@ comp <- rbind(nb_seg,
               ck_seg,
               inf_seg
 )
+comp[cnv_state == "", cnv_state := "neu"]
 comp
 
 
@@ -252,8 +284,8 @@ all_bins <- union_dt[, bin_id]
 
 
 # Adding neu tag
-comp_dt[cnv_state == "", cnv_state := "neu"]
-comp_dt
+# comp_dt[cnv_state == "", cnv_state := "neu"]
+# comp_dt
 # comp_dt[cell_name == "tnbc1_AAACCTGCACCTTGTC" &
 #           bin_id == 2299]
 
@@ -273,10 +305,10 @@ comp_wide[, unique(numbat)]
 
 
 # getting more than 1
-dups_dt <- comp_wide[copykat > 1, .(cell_name, bin_id)]
+curr_caller <- "numbat"
+dups_dt <- comp_wide[get(curr_caller) > 1, .(cell_name, bin_id)]
 dups_dt
 
-curr_caller <- "infercnv"
 test_dt <- c()
 for(nr in 1:nrow(dups_dt)) {
 
@@ -284,34 +316,34 @@ for(nr in 1:nrow(dups_dt)) {
        bin_id == dups_dt[nr, bin_id] &
        caller == curr_caller][, length(unique(cnv_state))] > 1) {
 
-#         tmp_dt <- data.table(cell_name = dups_dt[nr, cell_name],
-#                              bin_id = dups_dt[nr, bin_id],
-#                              cnv_state = T
-#         )
-        print(paste0("cell_name : ",
-                     dups_dt[nr, cell_name],
-                     "\nbin_id : ",
-                     dups_dt[nr, bin_id]))
-    } else {
-
+        tmp_dt <- data.table(cell_name = dups_dt[nr, cell_name],
+                             bin_id = dups_dt[nr, bin_id],
+                             cnv_state = T
+        )
+        test_dt <- rbind(test_dt, tmp_dt)
 #         tmp_dt <- data.table(cell_name = dups_dt[nr, cell_name],
 #                              bin_id = dups_dt[nr, bin_id],
 #                              cnv_state = F
 #         )
+#         print(paste0("cell_name : ",
+#                      dups_dt[nr, cell_name],
+#                      "\nbin_id : ",
+#                      dups_dt[nr, bin_id]))
     }
 
-#     test_dt <- rbind(test_dt, tmp_dt)
-}
-test_dt[cnv_state == T]
 
+}
+test_dt
+inf_test <- test_dt
+inf_test
 
 
 comp[cell_name == "tnbc1_AAACCTGCACCTTGTC" &
-     bin_id == 83 &
-     caller == "infercnv"]
+     bin_id == 30 &
+     caller == "copykat"]
 
 
-comp_wide[copykat == 5 &
+comp_wide[copykat == 2 &
           cell_name == "tnbc1_AAACCTGCACCTTGTC"]
 
 
@@ -348,7 +380,7 @@ union_dt[bin_id == 30]
 union_dt[bin_id == 1316]
 
 comp[cell_name == "tnbc1_AAACGGGTCCAGAGGA" &
-     bin_id == 1342]
+     bin_id == 3869]
 
 
 ################################################################################
