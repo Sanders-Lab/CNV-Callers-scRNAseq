@@ -560,12 +560,10 @@ UpSetR::upset(data = alt_wide_df,
 dev.off()
 
 
-
 cnv_colors <- c("neu" = "gray",
                 "del" = "dodgerblue2",
                 "amp" = "tomato2",
                 "loh" = "springgreen3"
-
 )
 
 callers <- c("copykat", "infercnv", "numbat")
