@@ -139,26 +139,37 @@ nb_gro <- makeGRangesFromDataFrame(nb_calls,
                                    keep.extra.columns = T
 )
 
-nb_dt <- as.data.table(nb_gro)
-ck_dt <- as.data.table(ck_gro)
-inf_dt <- as.data.table(inf_gro)
+# nb_dt <- as.data.table(nb_gro)
+# ck_dt <- as.data.table(ck_gro)
+# inf_dt <- as.data.table(inf_gro)
 
 
-nb_dt
 
 
 # union of the three ranges
-union_ranges <- makeGRangesFromDataFrame(inf_calls,
-                                         start.field = "start_loc",
-                                         end.field = "end_loc",
-                                         seqnames.field = "chr_name"
-)
-union_ranges <- inf_gro
-union_ranges <- c(ck_gro, inf_gro, nb_gro)
-union_ranges <- GenomicRanges::union(ck_gro, inf_gro)
-GenomicRanges::merge(ck_gro, 
-                     inf_gro
-)
+# union_ranges <- makeGRangesFromDataFrame(inf_calls,
+#                                          start.field = "start_loc",
+#                                          end.field = "end_loc",
+#                                          seqnames.field = "chr_name"
+# )
+
+
+# removing the cell_name and cnv_state as I want the 
+# unique of only the ranges
+ck_gro$cell_name <- NULL
+ck_gro$cnv_state <- NULL
+
+inf_gro$cell_name <- NULL
+inf_gro$cnv_state <- NULL
+
+union_ranges <- c(ck_gro, inf_gro)
+union_ranges <- unique(union_ranges)
+union_ranges
+
+# union_ranges <- GenomicRanges::union(ck_gro, inf_gro)
+# GenomicRanges::merge(ck_gro, 
+#                      inf_gro
+# )
 isDisjoint(union_ranges)
 union_ranges  <- disjoin(union_ranges)
 union_ranges$sv_state  <- "bg"
@@ -177,7 +188,7 @@ str(Plot_Digital_Karyotype)
 Plot_Digital_Karyotype(cell_sv_dt = union_dt,
                        plot_both_haplotypes = F,
                        save_digital_karyotype = T,
-                       plot_dir = "union_ranges"
+                       plot_dir = "upset_plots"
 
 )
 
@@ -186,11 +197,11 @@ Plot_Digital_Karyotype(cell_sv_dt = union_dt,
 
 
 
+# assigning bin ids
 union_ranges$bin_id <- 1:length(union_ranges)
 union_dt <- as.data.table(union_ranges)
 union_dt
 union_ranges
-isDisjoint(union_ranges)
 
 
 # ck_gro
@@ -242,6 +253,9 @@ Get_Overlaps <- function(union_ranges,
 
 
 
+# ATTENTION: Please rerun the gro creating steps above
+# since cell_name and cnv_state was removed earlier
+# to make the union ranges.
 nb_seg <- Get_Overlaps(union_ranges, nb_gro, "numbat")
 inf_seg <- Get_Overlaps(union_ranges, inf_gro, "infercnv")
 ck_seg <- Get_Overlaps(union_ranges, ck_gro, "copykat")
@@ -293,8 +307,10 @@ all_bins <- union_dt[, bin_id]
 # this dt is required
 comp_wide <- dcast(comp_dt,
       cell_name + bin_id + cnv_state ~ caller,
-      fun = length
-#       value.var = "cnv_state"
+      fun = function(x) {
+          length(unique(x))
+      },
+      value.var = "cnv_state"
 )
 comp_wide
 
@@ -305,7 +321,7 @@ comp_wide[, unique(numbat)]
 
 
 # getting more than 1
-curr_caller <- "numbat"
+curr_caller <- "infercnv"
 dups_dt <- comp_wide[get(curr_caller) > 1, .(cell_name, bin_id)]
 dups_dt
 
@@ -340,7 +356,7 @@ inf_test
 
 comp[cell_name == "tnbc1_AAACCTGCACCTTGTC" &
      bin_id == 30 &
-     caller == "copykat"]
+     caller == "infercnv"]
 
 
 comp_wide[copykat == 2 &
@@ -356,7 +372,6 @@ all_instances
 
 comp_wide[cell_name == "tnbc1_AAACCTGCACCTTGTC" &
           bin_id == 2299]
-comp_wide_df <- data.frame(comp_wide)
 head(comp_wide_df)
 str(comp_wide_df)
 typeof(comp_wide_df)
@@ -384,10 +399,13 @@ comp[cell_name == "tnbc1_AAACGGGTCCAGAGGA" &
 
 
 ################################################################################
+# plotting upset plots.
+comp_wide_df <- data.frame(comp_wide)
+
 
 str(upset)
 pdf("../plots/upset_plots/upset_plot_overlaps.pdf")
-upset(data = comp_wide_df,
+UpSetR::upset(data = comp_wide_df,
       sets = c("copykat", "infercnv", "numbat"),
       order.by = "freq"
 )
@@ -418,7 +436,6 @@ ComplexUpset::upset(data = comp_wide_df,
 )
 dev.off()
 
-head(comp_wide_df, n = 15)
 
 
 
@@ -458,190 +475,169 @@ ComplexUpset::upset(data = comp_wide_df,
 )
 dev.off()
 
-comp_wide[copykat == 0 &
-          infercnv == 0 &
-          numbat == 1] 
 
-comp_wide[copykat == 1 &
-          infercnv == 1 &
-          numbat == 1
-      ][, unique(cnv_state)]
+# checking how many neu_calls go to other calls
+neu_calls <- comp_wide[cnv_state == "neu"]
+neu_calls_df <- data.frame(neu_calls)
 
 
-
-
-
-################################################################################
-pdf("../plots/upset_plots/upset_plot.pdf")
-upset(fromList(movies))
-dev.off()
-
-str(up_plt)
-
-set_dt <- data.table()
-set_dt$all_overlap <- upset_dt[infercnv == copykat &
-         infercnv == numbat &
-         numbat == copykat, .N]
-set_dt$infercnv_copykat <- upset_dt[infercnv == copykat
-         , .N]
-set_dt$numbat_copykat <- upset_dt[numbat == copykat
-         , .N]
-set_dt$infercnv_numbat <- upset_dt[infercnv == numbat
-         , .N]
-set_dt
-
-plot_set_dt <- melt(set_dt)
-plot_set_dt
-
-
-movies <- read.csv(system.file("extdata", "movies.csv", package = "UpSetR"), 
-    header = T, sep = ";")
-str(movies)
-
-pdf("../plots/upset_plots/manual_upset.pdf")
-ggplot(data = plot_set_dt,
-       aes(x = variable,
-           y = value
-       )) +
-      geom_col()
+pdf("../plots/upset_plots/neu_calls_overlap.pdf")
+UpSetR::upset(data = neu_calls_df,
+      sets = c("copykat", "infercnv", "numbat"),
+      order.by = "freq"
+)
 dev.off()
 
 
+# prop of neu calls overlap
+pdf("../plots/upset_plots/neu_calls_prop.pdf")
+ComplexUpset::upset(data = neu_calls_df,
+      callers,
+      base_annotations = list(
+        'Intersection size'=(
+            intersection_size(
+                text_mapping=aes(
+                    label=paste0(round(!!get_size_mode('exclusive_intersection') / nrow(neu_calls_df) * 100, 2), '')
+            )) +
+            ylab('Intersection %') +
+            scale_y_continuous(labels=scales::percent_format(scale=100 / nrow(neu_calls_df)))
+        )
+    ),
+    set_sizes=(FALSE)
+)
+dev.off()
 
-comp
-comp[cell_name == "tnbc1_AAACCTGCACCTTGTC" &
-     bin_id == 4212]
-comp <- unique(comp)
-comp
+
+# checking what calls are called in place of neu
+neu_calls
+
+# removing the rows which have all overlap
+par_overlaps <- neu_calls[rowSums(neu_calls[, .(copykat, infercnv, numbat)]) < 3]
+par_overlaps
 
 
+# way to get those cell_name and bin_id of par overlaps in comp_dt
+new_df <- merge(par_overlaps, comp_dt, all = F, by = c("cell_name", "bin_id"))
+new_df
+
+# sanity check
+new_df[rowSums(new_df[, .(copykat, infercnv, numbat)]) < 3]
+new_df[cnv_state.y != "neu", .N, by = .(cell_name, bin_id)
+       ][,unique(N)]
+
+
+alt_calls <- unique(new_df[cnv_state.y != "neu", .SD, by = .(cell_name, bin_id)])
+alt_calls[, cnv_state.x := NULL]
+alt_calls[, copykat := NULL]
+alt_calls[, infercnv := NULL]
+alt_calls[, numbat := NULL]
+alt_calls
+
+
+alt_wide <- dcast(alt_calls,
+      cell_name + bin_id + cnv_state.y ~ caller,
+      fun = function(x) {
+          length(unique(x))
+      },
+      value.var = "cnv_state.y"
+)
+alt_wide
+
+alt_wide[, unique(copykat)]
+alt_wide[, unique(infercnv)]
+alt_wide[, unique(numbat)]
 
 ################################################################################
-# melting begins
-melt_comp <- melt(comp,
-     id.vars = c("cell_name", "bin_id"),
-     measure.vars = c("infercnv", "copykat", "numbat")
-)
-melt_comp
-melt_comp[value == "neu"]
-melt_comp[value == "del"]
-melt_comp[value == "amp"]
+# plotting alt calls (calls where any one caller calls neu)
+alt_wide_df <- data.frame(alt_wide)
 
 
-# converting cnv_state to values
-# melt_comp[, value := gsub("amp", 1, value)]
-# melt_comp[, value := gsub("neu", 0, value)]
-# melt_comp[, value := gsub("del", -1, value)]
-# 
-# 
-# 
-# melt_comp[value == 1]
-# melt_comp[value == -1]
-# melt_comp[value == 0]
-# melt_comp
-
-
-str(melt_comp)
-melt_comp
-
-
-
-melt_comp <- unique(melt_comp)
-
-melt_comp[value == "neu", n_overlaps := .N, by = .(cell_name,
-                                               bin_id)]
-melt_comp[value == "amp", n_overlaps := .N, by = .(cell_name,
-                                               bin_id)]
-melt_comp[value == "del", n_overlaps := .N, by = .(cell_name,
-                                               bin_id)]
-melt_comp[, unique(n_overlaps)]
-melt_comp
-
-
-neu_calls <- melt_comp[value == "neu" ]
-neu_calls[,unique(value)]
-neu_calls_wide <- dcast(neu_calls,
-                        cell_name + bin_id ~ variable,
-                        value.var = "value"
-)
-neu_calls_wide
-
-
-# stackoverflow solution to replace all NA with 0
-f_dowle2 = function(DT) {
-  for (i in names(DT))
-    DT[is.na(get(i)), (i):=as.numeric(0)]
-}
-
-binarize_calls = function(DT, call) {
-  for (i in names(DT))
-    DT[get(i) == call, (i):=as.numeric(1)]
-}
-
-make_numeric = function(DT) {
-  for (i in names(DT))
-    DT[, get(i):= as.numeric(i)]
-}
-binarize_calls(neu_calls_wide, call = "neu")
-f_dowle2(neu_calls_wide)
-
-upset_dt <- neu_calls_wide[, .(infercnv,
-                   copykat,
-                   numbat)]
-upset_dt
-
-upset_dt[, infercnv := as.numeric(infercnv)]
-upset_dt[, copykat := as.numeric(copykat)]
-upset_dt[, numbat := as.numeric(numbat)]
-
-upset_dt[, infercnv := as.numeric(infercnv)]
-upset_dt[, copykat := as.numeric(copykat)]
-upset_dt[, numbat := as.numeric(numbat)]
-
-# make_numeric(upset_dt)
-neu_calls_wide
-str(upset_dt)
-
-upset_df <- as.data.frame(upset_dt)
-upset_df
-str(upset_df)
-
-
-(head(upset_df))
-
-pdf("../plots/upset_plots/upset_neu.pdf")
-upset(upset_df,
+pdf("../plots/upset_plots/upset_plot_neu_alt_overlaps.pdf")
+UpSetR::upset(data = alt_wide_df,
+      sets = c("copykat", "infercnv", "numbat"),
       order.by = "freq"
 )
 dev.off()
 
 
 
+cnv_colors <- c("neu" = "gray",
+                "del" = "dodgerblue2",
+                "amp" = "tomato2",
+                "loh" = "springgreen3"
+
+)
+
+callers <- c("copykat", "infercnv", "numbat")
+
+
+pdf("../plots/upset_plots/upset_plot_neu_alt_stacked.pdf")
+ComplexUpset::upset(data = alt_wide_df,
+      callers,
+      base_annotations=list(
+                            'Intersection size'=intersection_size(
+                                                                  counts=FALSE,
+                                                                  mapping=aes(fill=cnv_state.y)
+                            ) +
+            scale_fill_manual(values = cnv_colors)
+      )
+)
+dev.off()
 
 
 
-melt_comp[n_overlaps == 2,
-          variable[1],
-          by = .(cell_name, bin_id)]
-melt_comp[n_overlaps == 2,
-          variable[2],
-          by = .(cell_name, bin_id)]
-melt_comp[n_overlaps == 2,
-          overlap_pairs := paste(variable[1], variable[2], sep = "-"),
-          by = .(cell_name, bin_id)]
-melt_comp[is.na(overlap_pairs), overlap_pairs := variable]
-melt_comp[overlap_pairs == "infercnv-infercnv", .SD, by = .(cell_name, bin_id)]
+
+
+pdf("../plots/upset_plots/upset_plot_overlaps_neu_alt_prop.pdf")
+ComplexUpset::upset(data = alt_wide_df,
+      callers,
+      base_annotations = list(
+        'Intersection size'=(
+            intersection_size(
+                text_mapping=aes(
+                    label=paste0(round(!!get_size_mode('exclusive_intersection') / nrow(alt_wide_df) * 100, 2), '')
+            ),
+                mapping=aes(fill=cnv_state.y)) +
+            ylab('Intersection %') +
+            scale_y_continuous(labels=scales::percent_format(scale=100 / nrow(alt_wide_df))) +
+            scale_fill_manual(values = cnv_colors)
+        )
+    ),
+    set_sizes=(FALSE)
+)
+dev.off()
+
+
+pdf("../plots/upset_plots/upset_plot_overlaps_neu_alt_fill.pdf")
+ComplexUpset::upset(data = alt_wide_df,
+      callers,
+      base_annotations = list('Proportion'=list(
+        aes=aes(x=intersection, fill=cnv_state.y),
+        geom=list(
+            geom_bar(stat='count', position='fill'),
+            scale_fill_manual(values = cnv_colors)
+        )
+    )
+
+    )
+)
+dev.off()
 
 
 
-plot_dt <- as.data.table(melt_comp[n_overlaps == 3, round(table(value) / .N, 2)])
-plot_dt <- rbind(plot_dt,
-                 as.data.table(melt_comp[n_overlaps == 2, round(table(value) / .N, 2),
-                                            by = .(overlap_pairs)]),
-                 fill = T)
-plot_dt
-melt_comp[n_overlaps == 2, table(value) / .N]
-melt_comp[n_overlaps == 2, round(table(value) / .N, 2), by = .(overlap_pairs)]
+new_df[cell_name == "tnbc1_TTTGTCATCTTGTATC" &
+       bin_id == 7640]
 
 
-as.data.table(melt_comp[, table(n_overlaps)])
+
+comp_dt[cell_name %in% par_overlaps[, cell_name] &
+        bin_id %in% par_overlaps[, bin_id]]
+
+
+comp_dt[cell_name == "tnbc1_AAACCTGCACCTTGTC" &
+        bin_id == 5
+    ][cnv_state != "neu"]
+
+
+################################################################################
+
