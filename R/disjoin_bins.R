@@ -639,3 +639,44 @@ comp_dt[cell_name == "tnbc1_AAACCTGCACCTTGTC" &
 
 ################################################################################
 
+# plotting the loc of all overlaps
+all_overlaps <- comp_wide[rowSums(comp_wide[, .(copykat, infercnv, numbat)]) == 3]
+all_overlaps
+
+overlap_bins <- all_overlaps[, unique(bin_id)]
+
+plot_all_overlaps <- comp[bin_id %in% overlap_bins
+     ][, .(seqnames, start, end)] |>
+         unique()
+
+
+comp
+all_overlaps_coords <- merge(all_overlaps, 
+      comp,
+      by = c("cell_name", "bin_id")
+)
+
+plot_all_overlaps <- unique(all_overlaps_coords[, .(seqnames, start, end)])
+plot_all_overlaps[, cell_name := "all_overlaps"]
+plot_all_overlaps[, sv_state := "agreement"]
+setnames(plot_all_overlaps,
+         c("seqnames", "start", "end"),
+         c("chrom", "start_loc", "end_loc")
+)
+plot_all_overlaps
+
+
+agree_col <- "slateblue"
+names(agree_col) <- "agreement"
+
+
+Plot_Digital_Karyotype(cell_sv_dt = plot_all_overlaps,
+                       plot_both_haplotypes = F,
+                       save_digital_karyotype = T,
+                       color_pal = agree_col,
+                       plot_dir = "upset_plots",
+                       kar_label = "Agreement loci between three callers"
+
+)
+
+
