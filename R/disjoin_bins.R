@@ -643,22 +643,55 @@ comp_dt[cell_name == "tnbc1_AAACCTGCACCTTGTC" &
 all_overlaps <- comp_wide[rowSums(comp_wide[, .(copykat, infercnv, numbat)]) == 3]
 all_overlaps
 
-overlap_bins <- all_overlaps[, unique(bin_id)]
 
-plot_all_overlaps <- comp[bin_id %in% overlap_bins
-     ][, .(seqnames, start, end)] |>
-         unique()
+two_overlaps <- comp_wide[rowSums(comp_wide[, .(copykat, infercnv, numbat)]) == 2]
+two_overlaps
 
 
-comp
-all_overlaps_coords <- merge(all_overlaps, 
-      comp,
-      by = c("cell_name", "bin_id")
-)
+all_overlap_bins <- all_overlaps[, unique(bin_id)]
+two_overlap_bins <- two_overlaps[, unique(bin_id)]
 
-plot_all_overlaps <- unique(all_overlaps_coords[, .(seqnames, start, end)])
-plot_all_overlaps[, cell_name := "all_overlaps"]
-plot_all_overlaps[, sv_state := "agreement"]
+
+all_overlaps_loc <- union_dt[bin_id %in% all_overlap_bins
+     ][, .(seqnames, start, end)]
+all_overlaps_loc
+
+
+two_overlaps_loc <- union_dt[bin_id %in% two_overlap_bins
+     ][, .(seqnames, start, end)]
+two_overlaps_loc
+
+
+non_overlaps <- union_dt[!bin_id %in% c(all_overlap_bins, two_overlap_bins)
+     ][, .(seqnames, start, end)]
+non_overlaps
+
+non_overlaps <- union_dt[!bin_id %in% all_overlap_bins
+                         ][, .(seqnames, start, end)]
+
+all_overlaps_loc[, cell_name := "all_overlaps"]
+all_overlaps_loc[, sv_state := "all_agreement"]
+all_overlaps_loc
+
+
+two_overlaps_loc[, cell_name := "all_overlaps"]
+two_overlaps_loc[, sv_state := "two_agreement"]
+two_overlaps_loc
+
+
+
+non_overlaps[, cell_name := "all_overlaps"]
+non_overlaps[, sv_state := "non_agreement"]
+non_overlaps
+
+plot_all_overlaps <- rbind(all_overlaps_loc,
+#                            two_overlaps_loc,
+                           non_overlaps)
+
+plot_all_overlaps <- rbind(all_overlaps_loc,
+                           two_overlaps_loc,
+                           non_overlaps)
+
 setnames(plot_all_overlaps,
          c("seqnames", "start", "end"),
          c("chrom", "start_loc", "end_loc")
@@ -666,8 +699,8 @@ setnames(plot_all_overlaps,
 plot_all_overlaps
 
 
-agree_col <- "slateblue"
-names(agree_col) <- "agreement"
+agree_col <- c("springgreen3", "darkorchid", "tomato2")
+names(agree_col) <- c("all_agreement", "two_agreement", "non_agreement")
 
 
 Plot_Digital_Karyotype(cell_sv_dt = plot_all_overlaps,
@@ -679,4 +712,15 @@ Plot_Digital_Karyotype(cell_sv_dt = plot_all_overlaps,
 
 )
 
+
+# changing cell name to save to a diff file
+plot_all_overlaps[, cell_name := "all_combo_overlaps"]
+Plot_Digital_Karyotype(cell_sv_dt = plot_all_overlaps,
+                       plot_both_haplotypes = F,
+                       save_digital_karyotype = T,
+                       color_pal = agree_col,
+                       plot_dir = "upset_plots",
+                       kar_label = "Agreement loci between three callers"
+
+)
 
