@@ -140,6 +140,7 @@ RunConicsmat <- function(obs_ref_mat,
         thresh = 1
     )
 
+
     ggsave(
         str_glue("{save_dir}/all_cells_chr_heatmap.pdf"),
         chr_heatmap
@@ -237,6 +238,14 @@ if(is.na(cmd_args[1])) {
                         normal_prefix: {cmd_args[3]}\n
                         aneu_prefix: {cmd_args[4]}\n
                         out_dir: {cmd_args[5]}\n"))
+}
+
+
+
+if (!dir.exists(save_dir)) {
+
+    dir.create(save_dir)
+    writeLines("output dir is created!")
 }
 
 
