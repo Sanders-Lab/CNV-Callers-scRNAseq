@@ -14,9 +14,21 @@ raw_gro <- makeGRangesFromDataFrame(raw_segs,
 )
 raw_gro
 
+
 cont_ranges <- reduce(raw_gro)
 cont_dt <- as.data.table(cont_ranges)
 cont_dt
+
+unified_ranges <- data.table(seqnames = "chr6",
+                             start = cont_dt[1, start],
+                             end = cont_dt[6, end]
+)
+unified_ranges[, width := (end - start)]
+unified_ranges[, strand := "*"]
+
+unified_ranges
+unified_gro <- makeGRangesFromDataFrame(unified_ranges)
+unified_gro
 
 
 # reading in rna counts of tall
@@ -91,6 +103,7 @@ findOverlaps(ref_regions, sv_overlaps)
 ref_regions_dt <- as.data.table(ref_regions)
 ref_regions_dt[, unique(seqnames)]
 
+
 ref_regions_dt
 fwrite(ref_regions_dt,
        "../proc/ref_regions_tall.tsv.gz",
@@ -100,6 +113,8 @@ fwrite(ref_regions_dt,
 ref_ct_comb <- rbind(cont_dt,
       ref_regions_dt)
 
+ref_ct_comb <- rbind(unified_ranges,
+      ref_regions_dt)
 
 
 
@@ -157,6 +172,7 @@ source("../../digital_karyotype/R/utils.R", chdir = T)
 
 
 ct_seg_genes <- as.data.table(subsetByOverlaps(gene_pos_gro, cont_ranges))
+ct_seg_genes <- as.data.table(subsetByOverlaps(gene_pos_gro, unified_gro))
 ct_seg_genes
 
 gene_segs_dt[start %in% ct_seg_genes[, start],
@@ -173,6 +189,7 @@ setnames(gene_segs_dt,
          c("chrom", "start_loc", "end_loc")
 )
 gene_segs_dt
+gene_segs_dt[sv_state == "ct"]
 
 colors <- c("red", "green")
 names(colors) <- c("ct", "ref")
