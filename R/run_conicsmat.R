@@ -200,11 +200,23 @@ RunConicsmat <- function(obs_ref_mat,
 # check
 # gene_pos
 # 
-# ProcConicsmatData(obs_ref_mat,
+# ret_list <- ProcConicsmatData(obs_ref_mat,
 #     gene_pos,
 #     normal_prefix = "pbmc",
 #     aneu_prefix = "tall"
 # )
+# obs_ref_mat <- ret_list[1]
+# norm_factor <- ret_list[2]
+# normal_cells <- ret_list[3]
+# aneu_cells <- ret_list[4]
+# 
+# normal_cells <- as.character(normal_cells)
+# aneu_cells <- as.vector(aneu_cells)
+# typeof(normal_cells)
+# normal_cells
+# aneu_cells
+# norm_factor
+# gene_pos
 # 
 # RunConicsmat(obs_ref_mat,
 #     regions,
@@ -212,17 +224,17 @@ RunConicsmat <- function(obs_ref_mat,
 #     gene_pos,
 #     normal_cells,
 #     aneu_cells,
-#     save_dir = "../outputs/tall_scnova/conicsmat_pbmc_tall"
+#     save_dir = "../outputs/tall_scnova/conicsmat_pbmc3k_tall"
 # )
-
-
+# 
+# 
 ################################################################################
 # MAIN SECTION
 
 cmd_args <- commandArgs(trailingOnly = T)
 
 
-if(is.na(cmd_args[1])) {
+if(length(cmd_args) < 5) {
 
     stop("\nPlease pass in the following inputs:\n
                         count_mat_path\n
@@ -242,9 +254,9 @@ if(is.na(cmd_args[1])) {
 
 
 
-if (!dir.exists(save_dir)) {
+if (!dir.exists(cmd_args[5])) {
 
-    dir.create(save_dir)
+    dir.create(cmd_args[5])
     writeLines("output dir is created!")
 }
 
@@ -253,17 +265,13 @@ if (!dir.exists(save_dir)) {
 if (cmd_args[2] == "") {
     read_list <- ReadData(obs_ref_dir = cmd_args[1])
 
-    obs_ref_mat <- read_list[[1]]
-
 } else {
     read_list <- ReadData(obs_ref_dir = cmd_args[1],
                           reg_dir = cmd_args[2])
-
-    obs_ref_mat <- read_list[[1]]
-    regions <- read_list[[2]]
-    
 }
 
+obs_ref_mat <- read_list[[1]]
+regions <- read_list[[2]]
 
 gene_pos <- GetGeneLoc(gene_names = obs_ref_mat$gene)
 
