@@ -88,8 +88,17 @@ runCopykat <- function(count_mat, n_cores, out_dir, ref_cells_names) {
 # read cmd line args
 cmd_args <- commandArgs(trailingOnly = T)
 
+if (length(cmd_args) < 4) {
+    stop("\nNot all inputs provided.\n
+         1. count mat\n
+         2. n_cores\n
+         3. out_dir\n
+         4. ref_cell_prefix\n")
+} else {
 
-ret_list <- preProcData(cmd_args)
+    ret_list <- preProcData(cmd_args)
+}
+
 count_mat <- ret_list[[1]]
 n_cores <- as.integer(ret_list[[2]])
 out_dir <- ret_list[[3]]
