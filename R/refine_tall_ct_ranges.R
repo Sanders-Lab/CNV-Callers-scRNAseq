@@ -137,13 +137,14 @@ segs_gro <- subsetByOverlaps(gene_pos_gro, ref_ct_gro)
 gene_segs_dt <- as.data.table(segs_gro)
 gene_segs_dt
 
-chr6 <- gene_segs_dt[chrom == "chr6"]
+chr6 <- gene_segs_dt[seqnames == "chr6"]
 chr6
 
 
 
 raw_counts[, 1:5]
 filt_counts <- raw_counts[V1 %in% gene_segs_dt[, hgnc_symbol]]
+
 filt_counts <- raw_counts[V1 %in% chr6[, hgnc_symbol]]
 filt_counts[, 1:5]
 
@@ -160,6 +161,24 @@ write.table(filt_counts_df,
 
 write.table(filt_counts_df,
       file = "../proc/ct_segs_ref_comb_chr6_filt_counts.tsv.gz",
+      sep = "\t"
+)
+
+# for numbat, removing the pbmc cells
+
+filt_counts_numbat <- filt_counts_df[,grep("tall_*", colnames(filt_counts_df))]
+filt_counts_numbat[1:5,1:5]
+dim(filt_counts_numbat)
+
+write.table(filt_counts_numbat,
+      file = "../proc/ct_segs_ref_comb_filt_counts_numbat.tsv.gz",
+      sep = "\t"
+)
+
+
+
+write.table(filt_counts_numbat,
+      file = "../proc/ct_segs_ref_comb_chr6_filt_counts_numbat.tsv.gz",
       sep = "\t"
 )
 
