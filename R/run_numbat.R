@@ -79,7 +79,8 @@ RunNumbat <- function(count_mat,
                       n_cores,
                       out_dir,
                       t = 1e-5,
-                      min_llr = 5) {
+                      min_llr = 5,
+                      segs_dt) {
     run_numbat(count_mat,
         ref_custom,
         allele_count,
@@ -88,6 +89,7 @@ RunNumbat <- function(count_mat,
         plot = TRUE,
         min_LLR = min_llr,
         t = t,
+        segs_consensus_fix = segs_dt,
         out_dir = out_dir
     )
 }
