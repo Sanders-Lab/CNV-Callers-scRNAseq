@@ -238,3 +238,49 @@ Plot_Digital_Karyotype(cell_sv_dt = chr6_plot,
 )
 
 
+# making the bed file for numbat regenotyping
+ideo_dt <- fread("../../digital_karyotype/proc/segmented_ideo.tsv.gz")
+ideo_dt
+
+
+ideo_gro <- makeGRangesFromDataFrame(ideo_dt,
+                                    seqnames.field = "chrom",
+                                    start.field = "start_loc",
+                                    end.field = "end_loc",
+                                    keep.extra.columns = T
+)
+ideo_gro
+
+nb_seg_input <- as.data.table(disjoin(c(ideo_gro, unified_gro)))
+
+
+setnames(nb_seg_input,
+         c("seqnames", "start", "end"),
+         c("CHROM", "seg_start", "seg_end")
+)
+
+nb_seg_input[, `:=`(width = NULL, strand = NULL)]
+nb_seg_input
+
+nb_seg_input[!seg_start %in% unified_ranges[, start],
+             cnv_state := "neu"]
+nb_seg_input[seg_start %in% unified_ranges[, start],
+             cnv_state := "amp"]
+
+# will manually change the segs
+nb_seg_input[, seg := "1a"]
+nb_seg_input
+
+
+setcolorder(nb_seg_input,
+            c("CHROM", "seg")
+)
+nb_seg_input
+
+
+fwrite(nb_seg_input,
+       "../proc/ct_segs_regenotype_numbat.tsv.gz",
+       sep = "\t"
+)
+
+
